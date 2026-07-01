@@ -396,6 +396,32 @@ export class DashboardComponent implements OnInit {
       .slice(-10); // Show last 10 incidents
   }
 
+  getIncidentsByEtat() {
+    const groups: { [key: string]: number } = {
+      'Ouvert': 0,
+      'En cours': 0,
+      'Clos': 0
+    };
+    this.incidents().forEach(i => {
+      const etat = i.evenement?.etat || 'Inconnu';
+      if (groups[etat] !== undefined) {
+        groups[etat]++;
+      } else {
+        groups[etat] = 1;
+      }
+    });
+    return Object.keys(groups).map(k => ({ etat: k, count: groups[k] }));
+  }
+
+  getEventsByNature() {
+    const groups: { [key: string]: number } = {};
+    this.events().forEach(e => {
+      const nature = e.natureEvenement || 'Autre';
+      groups[nature] = (groups[nature] || 0) + 1;
+    });
+    return Object.keys(groups).map(k => ({ nature: k, count: groups[k] }));
+  }
+
   // --------------------------
 
   getIncidentEvent(incident: Incident): Evenement | undefined {
