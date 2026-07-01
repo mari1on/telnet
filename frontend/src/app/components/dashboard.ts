@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService, User } from '../api.service';
@@ -179,7 +179,7 @@ export class DashboardComponent implements OnInit {
     role: ''
   };
 
-  constructor(protected apiService: ApiService) {}
+  constructor(protected apiService: ApiService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     this.loadEvents();
@@ -971,14 +971,17 @@ export class DashboardComponent implements OnInit {
       (targetForm as any)[field] = currentVal ? `${currentVal} ${speechResult}` : speechResult;
       
       this.isDictating[field] = false;
+      this.cdr.detectChanges();
     };
     
     recognition.onerror = () => {
       this.isDictating[field] = false;
+      this.cdr.detectChanges();
     };
 
     recognition.onend = () => {
       this.isDictating[field] = false;
+      this.cdr.detectChanges();
     };
 
     recognition.start();

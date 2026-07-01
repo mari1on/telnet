@@ -82,7 +82,7 @@ public class Incident {
 
     private String referencePca;
 
-    @OneToMany(mappedBy = "incident", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "incident", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<Risque> risques = new java.util.ArrayList<>();
 
     private Boolean risquesAMettreAJour;
