@@ -269,8 +269,8 @@ body {
   opacity: 0.85;
 }
 
-.bar-primary { background: linear-gradient(to top, #3b82f6, #60a5fa); }
-.bar-success { background: linear-gradient(to top, #10b981, #34d399); }
+.bar-primary { background: linear-gradient(to top, #2563eb, #3b82f6); }
+.bar-success { background: linear-gradient(to top, #3b82f6, #93c5fd); }
 
 .bar-label {
   position: absolute;
@@ -836,3 +836,12 @@ label {
 .bg-primary { background-color: #1b3f75 !important; }
 .bg-warning { background-color: #60a5fa !important; }
 .bg-danger { background-color: #ef4444 !important; }
+@keyframes pulse-red {
+  0% { color: inherit; transform: scale(1); }
+  50% { color: #ef4444; transform: scale(1.1); }
+  100% { color: inherit; transform: scale(1); }
+}
+.mic-recording {
+  animation: pulse-red 1.5s infinite;
+  color: #ef4444 !important;
+}

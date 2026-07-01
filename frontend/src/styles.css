@@ -2,8 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --primary-blue: #0A3C76;       /* Corporate Tech Blue */
-  --primary-blue-hover: #072B56;
+  --primary-blue: #60a5fa;       /* Corporate Tech Blue */
+  --primary-blue-hover: #3b82f6;
   --secondary-bg: #F4F6F9;       /* Soft light background */
   --surface-white: #FFFFFF;
   --text-dark: #1F2937;          /* Professional dark gray for text */

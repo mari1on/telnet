@@ -440,6 +440,21 @@ export class DashboardComponent implements OnInit {
     return (value || '').trim().length > 0;
   }
 
+  private sanitizeIncidentPayload(incident: Incident): Incident {
+    const payload = { ...incident };
+    const dateFields: (keyof Incident)[] = [
+      'mesureDDT', 'traitementDDT', 'traitementDateCloture',
+      'correctiveDateDebut', 'correctiveDateCloture', 'dateMesureEfficacite', 'suiviDate',
+      'heureAttenuation', 'traitementHDT', 'traitementHeureCloture', 'heureTraitement'
+    ];
+    dateFields.forEach(field => {
+      if (payload[field] === '') {
+        (payload as any)[field] = null;
+      }
+    });
+    return payload;
+  }
+
   private prepareIncidentFormDefaults(): void {
     this.incidentForm = {
       ...this.initIncidentForm(this.incidentForm.evenement?.id || 0),
@@ -467,7 +482,8 @@ export class DashboardComponent implements OnInit {
         const incidents = this.incidents();
         data.forEach(event => {
           if (event.qualification === 'INCIDENT' && !incidents.find(inc => inc.evenement?.id === event.id)) {
-             this.apiService.createIncident(this.initIncidentForm(event.id!)).subscribe({
+             const newIncident = this.sanitizeIncidentPayload(this.initIncidentForm(event.id!));
+             this.apiService.createIncident(newIncident).subscribe({
                next: (saved) => this.incidents.set([...this.incidents(), saved])
              });
           }
@@ -659,7 +675,7 @@ export class DashboardComponent implements OnInit {
             this.successMsg.set('Qualification mise à jour. Plan de traitement existant ouvert.');
           } else {
             // Auto-create the incident in the backend
-            const newIncident = this.initIncidentForm(event.id!);
+            const newIncident = this.sanitizeIncidentPayload(this.initIncidentForm(event.id!));
             this.apiService.createIncident(newIncident).subscribe({
               next: (savedIncident) => {
                 this.incidentForm = savedIncident;
@@ -799,9 +815,12 @@ export class DashboardComponent implements OnInit {
       this.incidentForm.traitementEtat = 'Clôturé';
     }
 
+    // Sanitize dates to prevent backend parse errors when strings are empty
+    const payload = this.sanitizeIncidentPayload(this.incidentForm);
+
     const operation = this.selectedIncident()
-      ? this.apiService.updateIncident(this.selectedIncident()!.id!, this.incidentForm)
-      : this.apiService.createIncident(this.incidentForm);
+      ? this.apiService.updateIncident(this.selectedIncident()!.id!, payload)
+      : this.apiService.createIncident(payload);
 
     operation.subscribe({
       next: () => {
@@ -831,4 +850,139 @@ export class DashboardComponent implements OnInit {
   logout(): void {
     this.apiService.logout();
   }
+
+  // --- AI Smart Fill (Simulation) ---
+  magicFill(): void {
+    const title = (this.eventForm.libelleErreur || '').toLowerCase();
+    if (!title) {
+      this.errorMsg.set('Veuillez dicter ou écrire un titre d\'abord.');
+      return;
+    }
+
+    // Simulate AI generation based on keywords
+    if (title.includes('panne') || title.includes('serveur')) {
+      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Le serveur principal a cessé de répondre aux requêtes, entraînant une indisponibilité temporaire des services.";
+      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Coupure réseau, défaillance matérielle ou surcharge système.";
+      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "Aucune donnée n'a été exfiltrée, impact nul sur la confidentialité.";
+      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "Les services sont totalement inaccessibles pour tous les utilisateurs métiers.";
+      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "Les données existantes n'ont pas été altérées.";
+      this.eventForm.natureEvenement = "Indisponibilite";
+      this.eventForm.detecteParSource = "Supervision";
+      this.eventForm.impactNiveau = "MAJEUR";
+      
+      if (this.incidentForm && this.showIncidentForm()) {
+        this.incidentForm.preconisation = this.incidentForm.preconisation || "Mettre en place une redondance serveur (cluster HA) et un onduleur de secours.";
+        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Remplacement de l'alimentation défectueuse et restauration depuis la dernière sauvegarde.";
+        this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Interruption du service d'expédition pendant 2 heures.";
+      }
+    } else if (title.includes('feu') || title.includes('incendie') || title.includes('physique')) {
+      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Une alarme incendie a été déclenchée dans le datacenter. L'accès physique a été temporairement restreint.";
+      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Surchauffe d'équipement ou alarme défectueuse.";
+      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "Les serveurs physiques sont sécurisés, pas de fuite.";
+      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "Coupure préventive de l'alimentation électrique du datacenter local.";
+      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "L'intégrité des disques doit être vérifiée après le redémarrage.";
+      this.eventForm.natureEvenement = "Degat_physique";
+      this.eventForm.detecteParSource = "Utilisateur";
+      this.eventForm.impactNiveau = "CRITIQUE";
+      
+      if (this.incidentForm && this.showIncidentForm()) {
+        this.incidentForm.preconisation = this.incidentForm.preconisation || "Révision complète du système d'extinction d'incendie et des capteurs thermiques.";
+        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Intervention des pompiers, nettoyage de la zone et remplacement des câbles fondus.";
+        this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Déclenchement du Plan de Continuité d'Activité (PCA) sur le site de secours.";
+      }
+    } else if (title.includes('mot de passe') || title.includes('accès')) {
+      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Tentatives répétées d'accès non autorisé détectées sur le portail d'authentification.";
+      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Attaque par force brute ou erreur de frappe d'un utilisateur légitime.";
+      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "Risque potentiel si l'attaquant a réussi à deviner un mot de passe faible.";
+      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "Le compte utilisateur a été temporairement verrouillé (disponibilité réduite pour cet utilisateur).";
+      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "Aucune modification de données détectée.";
+      this.eventForm.natureEvenement = "Acces_illicite";
+      this.eventForm.detecteParSource = "Supervision";
+      this.eventForm.impactNiveau = "MINEUR";
+      
+      if (this.incidentForm && this.showIncidentForm()) {
+        this.incidentForm.preconisation = this.incidentForm.preconisation || "Forcer l'authentification multifacteur (MFA) pour tous les comptes externes.";
+        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Blocage de l'adresse IP source et réinitialisation du mot de passe compromis.";
+        this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Aucun impact majeur sur la continuité de l'entreprise.";
+      }
+    } else {
+      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "L'événement s'est produit soudainement. L'analyse est en cours pour déterminer les détails exacts.";
+      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Instabilité du système ou erreur de configuration récente.";
+      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "En cours d'évaluation.";
+      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "En cours d'évaluation.";
+      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "En cours d'évaluation.";
+      this.eventForm.natureEvenement = "Autre";
+      this.eventForm.detecteParSource = "Helpdesk";
+      
+      if (this.incidentForm && this.showIncidentForm()) {
+        this.incidentForm.preconisation = this.incidentForm.preconisation || "Renforcer la supervision sur ce périmètre applicatif.";
+        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Application des correctifs de base et redémarrage des services.";
+      }
+    }
+
+    // Extract time smartly if keywords like "hier à 15h", "aujourd'hui à 10h" are found
+    const now = new Date();
+    if (title.includes('hier')) {
+      now.setDate(now.getDate() - 1);
+    }
+    const hourMatch = title.match(/(\d{1,2})h/);
+    if (hourMatch) {
+      now.setHours(parseInt(hourMatch[1], 10), 0, 0, 0);
+    }
+    
+    // Convert to native datetime-local format: YYYY-MM-DDThh:mm
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    this.eventForm.dateHeureDetection = `${year}-${month}-${day}T${hours}:${mins}`;
+
+    this.successMsg.set('✨ Remplissage magique terminé avec succès !');
+  }
+
+  // --- Speech to Text ---
+  isDictating: { [field: string]: boolean } = {};
+
+  startDictation(formContext: 'event' | 'incident', field: string): void {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      this.errorMsg.set("Votre navigateur ne supporte pas la reconnaissance vocale.");
+      return;
+    }
+
+    if (this.isDictating[field]) {
+      this.isDictating[field] = false;
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    this.isDictating[field] = true;
+
+    recognition.onresult = (event: any) => {
+      const speechResult = event.results[0][0].transcript;
+      const targetForm = formContext === 'event' ? this.eventForm : this.incidentForm;
+      
+      const currentVal = (targetForm as any)[field] || '';
+      (targetForm as any)[field] = currentVal ? `${currentVal} ${speechResult}` : speechResult;
+      
+      this.isDictating[field] = false;
+    };
+    
+    recognition.onerror = () => {
+      this.isDictating[field] = false;
+    };
+
+    recognition.onend = () => {
+      this.isDictating[field] = false;
+    };
+
+    recognition.start();
+  }
+
+
 }

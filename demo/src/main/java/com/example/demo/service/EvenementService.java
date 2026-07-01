@@ -2,6 +2,8 @@ package com.example.demo.service;
 
 import com.example.demo.entity.Evenement;
 import com.example.demo.repository.EvenementRepository;
+import com.example.demo.repository.IncidentRepository;
+import com.example.demo.entity.Incident;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Optional;
 public class EvenementService {
 
     private final EvenementRepository evenementRepository;
+    private final IncidentRepository incidentRepository;
     private final AuditLogService auditLogService;
 
     public List<Evenement> getAllEvenements(String username, boolean isRssi) {
@@ -86,6 +89,11 @@ public class EvenementService {
 
     public boolean deleteEvenement(Long id, String username) {
         return evenementRepository.findById(id).map(existing -> {
+            List<Incident> relatedIncidents = incidentRepository.findByEvenementId(id);
+            for (Incident incident : relatedIncidents) {
+                incidentRepository.delete(incident);
+                auditLogService.logAction(username, "Suppression automatique de l'Incident N° " + incident.getId() + " lié à l'événement");
+            }
             evenementRepository.delete(existing);
             auditLogService.logAction(username, "Suppression de l'Événement N° " + id);
             return true;

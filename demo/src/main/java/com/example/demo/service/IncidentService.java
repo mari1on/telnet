@@ -88,12 +88,22 @@ public class IncidentService {
             existing.setMiseAJourPcaNecessaire(details.getMiseAJourPcaNecessaire());
             existing.setReferencePca(details.getReferencePca());
 
-            existing.getRisques().clear();
-            if (details.getRisques() != null) {
-                details.getRisques().forEach(r -> {
-                    r.setIncident(existing);
-                    existing.getRisques().add(r);
-                });
+            if (details.getRisques() == null || details.getRisques().isEmpty()) {
+                existing.getRisques().clear();
+            } else {
+                List<com.example.demo.entity.Risque> current = existing.getRisques();
+                current.removeIf(r -> details.getRisques().stream().noneMatch(dr -> dr.getId() != null && dr.getId().equals(r.getId())));
+                for (com.example.demo.entity.Risque newOrUpdated : details.getRisques()) {
+                    if (newOrUpdated.getId() == null) {
+                        newOrUpdated.setIncident(existing);
+                        current.add(newOrUpdated);
+                    } else {
+                        current.stream().filter(r -> r.getId().equals(newOrUpdated.getId())).findFirst().ifPresent(r -> {
+                            r.setReference(newOrUpdated.getReference());
+                            r.setDescription(newOrUpdated.getDescription());
+                        });
+                    }
+                }
             }
 
             existing.setRisquesAMettreAJour(details.getRisquesAMettreAJour());
