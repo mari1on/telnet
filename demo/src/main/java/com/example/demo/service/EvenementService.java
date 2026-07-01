@@ -60,6 +60,13 @@ public class EvenementService {
             existing.setTypeActif(details.getTypeActif());
             existing.setActifAffecte(details.getActifAffecte());
             
+            existing.setImpactConfidentialite(details.getImpactConfidentialite());
+            existing.setCommentaireConfidentialite(details.getCommentaireConfidentialite());
+            existing.setImpactIntegrite(details.getImpactIntegrite());
+            existing.setCommentaireIntegrite(details.getCommentaireIntegrite());
+            existing.setImpactDisponibilite(details.getImpactDisponibilite());
+            existing.setCommentaireDisponibilite(details.getCommentaireDisponibilite());
+            
             if (wasQualified) {
                 existing.setQualification(details.getQualification());
                 existing.setQualifiePar(username);

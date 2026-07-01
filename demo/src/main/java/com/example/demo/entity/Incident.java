@@ -62,6 +62,15 @@ public class Incident {
     @Column(columnDefinition = "TEXT")
     private String commentaireEfficacite;
 
+    private Boolean hasRisquesAssocies;
+
+    private Boolean impactContinuite;
+
+    @Column(columnDefinition = "TEXT")
+    private String impactContinuiteDescription;
+
+    private Boolean capitalisation;
+
     private Boolean evenementsSimilaires;
 
     private Boolean changementDeclenche;
@@ -73,10 +82,8 @@ public class Incident {
 
     private String referencePca;
 
-    @Column(columnDefinition = "TEXT")
-    private String risquesIdentifiesDescription;
-
-    private String risquesIdentifiesReference;
+    @OneToMany(mappedBy = "incident", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Risque> risques = new java.util.ArrayList<>();
 
     private Boolean risquesAMettreAJour;
 

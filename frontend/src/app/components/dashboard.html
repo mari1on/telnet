@@ -62,39 +62,104 @@
         <p class="view-desc">Aperçu global de la sécurité du système d'information</p>
       </div>
 
-      <div class="stats-overview" style="display: flex; gap: 3rem; margin-top: 2rem; align-items: center; background: #ffffff; padding: 2rem; border-radius: 24px; border: 1px solid var(--border-color); flex-wrap: wrap;">
-        
-        <div class="chart-container" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
-          <h3 style="margin: 0; font-size: 1.1rem; color: #1b3f75;">Répartition des Événements</h3>
-          <div class="pie-chart" [style.background]="'conic-gradient(#93c5fd 0% ' + getNonQualifiedPercent() + '%, #3b82f6 ' + getNonQualifiedPercent() + '% ' + (getNonQualifiedPercent() + getIncidentPercent()) + '%, #1b3f75 ' + (getNonQualifiedPercent() + getIncidentPercent()) + '% 100%)'" style="width: 150px; height: 150px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.1);"></div>
-          <div class="chart-legend" style="display: flex; gap: 1rem; font-size: 0.8rem; font-weight: 600;">
-            <span style="display: flex; align-items: center; gap: 0.3rem;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #93c5fd;"></span> Non Qualifiés</span>
-            <span style="display: flex; align-items: center; gap: 0.3rem;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #3b82f6;"></span> Incidents</span>
-            <span style="display: flex; align-items: center; gap: 0.3rem;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #1b3f75;"></span> Autres</span>
+      <div class="dashboard-grid">
+        <!-- Top row KPIs -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-title">Événements Déclarés</div>
+            <div class="stat-value">{{ events().length }}</div>
+            <div class="stat-progress-container mt-2"><div class="stat-progress-bar bg-primary" style="width: 100%"></div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Événements Classés (Sans suite)</div>
+            <div class="stat-value text-success">{{ getEvenementsClasses() }}</div>
+            <div class="stat-progress-container mt-2"><div class="stat-progress-bar bg-success" style="width: 100%"></div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Incidents En Cours</div>
+            <div class="stat-value text-warning">{{ getIncidentsEnCours() }}</div>
+            <div class="stat-progress-container mt-2"><div class="stat-progress-bar bg-warning" style="width: 100%"></div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Incidents Traités</div>
+            <div class="stat-value text-primary">{{ getIncidentsTraites() }}</div>
+            <div class="stat-progress-container mt-2"><div class="stat-progress-bar bg-primary" style="width: 100%"></div></div>
           </div>
         </div>
 
-        <div class="stats-grid" style="flex: 1; min-width: 250px; display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 0;">
-          <div class="stat-card">
-            <div class="stat-title">Événements Totaux</div>
-            <div class="stat-value">{{ events().length }}</div>
-            <div class="stat-progress-container mt-2">
-              <div class="stat-progress-bar bg-primary" style="width: 100%"></div>
-            </div>
+        <div class="stats-grid mt-4">
+          <div class="stat-card stat-card-warning">
+            <div class="stat-title">Risques Touchés</div>
+            <div class="stat-value text-warning">{{ getRisquesTouchesCount() }}</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Non Qualifiés</div>
-            <div class="stat-value text-warning">{{ getNonQualifiedCount() }}</div>
-            <div class="stat-progress-container mt-2">
-              <div class="stat-progress-bar bg-warning" [style.width.%]="getNonQualifiedPercent()"></div>
-            </div>
+          <div class="stat-card stat-card-secondary">
+            <div class="stat-title">Temps Moyen d'Indisponibilité</div>
+            <div class="stat-value text-secondary">{{ getTempsMoyenIndisponibilite() }}</div>
           </div>
+          <div class="stat-card stat-card-secondary">
+            <div class="stat-title">Temps Moyen de Traitement</div>
+            <div class="stat-value text-secondary">{{ getTempsMoyenTraitement() }}</div>
+          </div>
+        </div>
+
+        <div class="dashboard-widgets mt-4">
+          <!-- Graph: Events by Year/Month -->
           <div class="stat-card">
-            <div class="stat-title">Incidents Ouverts</div>
-            <div class="stat-value text-danger">{{ getIncidentCount() }}</div>
-            <div class="stat-progress-container mt-2">
-              <div class="stat-progress-bar bg-danger" [style.width.%]="getIncidentPercent()"></div>
+            <h3 class="widget-title">Événements Déclarés / Mois</h3>
+            <div class="bar-chart">
+              @for (item of getEventsByYear(); track item.date) {
+                <div class="bar bar-primary" style="height: {{ (item.count / events().length) * 100 }}%;">
+                  <span class="bar-label">{{ item.date }}</span>
+                  <span class="bar-value">{{ item.count }}</span>
+                </div>
+              }
             </div>
+            @if (getEventsByYear().length === 0) {
+              <p class="empty-data">Aucune donnée</p>
+            }
+          </div>
+
+          <!-- Graph: Temps de traitement par incident -->
+          <div class="stat-card">
+            <h3 class="widget-title">Temps Traitement / Incident (Top 10)</h3>
+            <div class="bar-chart">
+              @for (item of getTempsTraitementChartData(); track item.incidentId) {
+                <div class="bar bar-success" [title]="'Incident #' + item.incidentId + ': ' + item.label" style="height: {{ item.heightPct }}%;">
+                  <span class="bar-label">#{{ item.incidentId }}</span>
+                </div>
+              }
+            </div>
+            @if (getTempsTraitementChartData().length === 0) {
+              <p class="empty-data">Aucune donnée</p>
+            }
+          </div>
+
+          <!-- Table: Risques Impactés -->
+          <div class="stat-card widget-scrollable">
+            <h3 class="widget-title">Risques Impactés</h3>
+            <table class="table-premium" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Inc. N°</th>
+                  <th>Réf</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (risque of getRisquesList(); track risque.incidentId + '-' + risque.ref) {
+                  <tr>
+                    <td><span class="badge badge-info">#{{ risque.incidentId }}</span></td>
+                    <td class="font-bold" style="white-space: nowrap;">{{ risque.ref }}</td>
+                    <td class="truncate-text" [title]="risque.desc" style="max-width: 150px;">{{ risque.desc }}</td>
+                  </tr>
+                }
+                @if (getRisquesList().length === 0) {
+                  <tr>
+                    <td colspan="3" style="text-align: center; color: #999;">Aucun risque identifié</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -115,39 +180,46 @@
           </button>
         </div>
 
-      <div class="table-container">
-        <table>
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
+        <table class="table-premium">
           <thead>
             <tr>
-              <th>RÉF</th>
-              <th>DATE</th>
-              <th>PROBLÈME IDENTIFIÉ</th>
-              <th>SOURCE / DÉCLARANT</th>
-              <th>ÉTAT</th>
-              <th>QUALIFICATION</th>
-              <th>ACTIONS</th>
+              <th>Nom</th>
+              <th>Détecté le</th>
+              <th>Détecté par</th>
+              <th>État</th>
+              <th>Évaluation</th>
+              <th>Confidentialité</th>
+              <th>Intégrité</th>
+              <th>Qualification</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             @for (event of events(); track event.id) {
               <tr>
-                <td><strong>#EV-{{ event.id }}</strong></td>
-                <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy' }}<br><small class="text-muted">{{ event.dateHeureDetection | date:'HH:mm' }}</small></td>
-                <td>
-                  <span class="error-libelle">{{ event.libelleErreur || 'Sans titre' }}</span>
-                  @if (event.serviceOsAppli) {
-                    <span class="error-code">{{ event.serviceOsAppli }}</span>
-                  }
-                </td>
+                <td><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
+                <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
                 <td>
                   <span class="badge badge-secondary">{{ event.detecteParSource }}</span>
-                  <div class="qualified-by">par {{ event.declarePar || 'Inconnu' }}</div>
+                  <div class="qualified-by" style="font-size: 0.75rem;">par {{ event.declarePar || 'Inconnu' }}</div>
                 </td>
                 <td>
                   <span class="badge" [class.badge-success]="event.etat === 'Clos'" [class.badge-warning]="event.etat === 'Ouvert'" [class.badge-info]="event.etat === 'En cours'">
                     {{ event.etat || 'Ouvert' }}
                   </span>
                 </td>
+                <td><div class="truncate-text" [title]="event.evaluation">{{ event.evaluation || '-' }}</div></td>
+                
+                <td>
+                  <span class="badge" [class.badge-danger]="event.impactConfidentialite === 'Majeur' || event.impactConfidentialite === 'Critique'" [class.badge-success]="event.impactConfidentialite === 'Mineur/Aucun'">{{ event.impactConfidentialite || '-' }}</span>
+                  <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireConfidentialite">{{ event.commentaireConfidentialite || '' }}</div>
+                </td>
+                <td>
+                  <span class="badge" [class.badge-danger]="event.impactIntegrite === 'Majeur' || event.impactIntegrite === 'Critique'" [class.badge-success]="event.impactIntegrite === 'Mineur/Aucun'">{{ event.impactIntegrite || '-' }}</span>
+                  <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireIntegrite">{{ event.commentaireIntegrite || '' }}</div>
+                </td>
+                
                 <td>
                   <span class="badge" 
                     [class.badge-danger]="event.qualification === 'INCIDENT'"
@@ -156,11 +228,9 @@
                   >
                     {{ event.qualification === 'INCIDENT' ? 'Incident' : (event.qualification === 'NON_INCIDENT' ? 'Classé sans suite' : 'En attente') }}
                   </span>
-                  @if (event.qualifiePar) {
-                    <span class="qualified-by">RSSI: {{ event.qualifiePar }}</span>
-                  }
                 </td>
-                <td>
+                
+                <td style="position: sticky; right: 0; background: white; z-index: 1;">
                   <div class="action-buttons">
                     <button class="btn btn-secondary btn-icon" (click)="openEditEvent(event)" title="Consulter / Modifier">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -169,8 +239,6 @@
                       <button class="btn btn-primary btn-icon btn-qualify" (click)="openQualify(event)" [title]="event.qualification === 'NON_QUALIFIE' ? 'Qualifier' : 'Modifier la qualification'">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                       </button>
-                    }
-                    @if (apiService.isRssi()) {
                       <button class="btn btn-danger btn-icon" (click)="deleteEvent(event.id!)" title="Supprimer">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       </button>
@@ -180,7 +248,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="7" class="text-center text-muted empty-state">
+                <td colspan="16" class="text-center text-muted empty-state">
                   <div class="empty-icon-wrapper">
                     <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="50" cy="50" r="40" stroke="#1b3f75" stroke-width="4"/>
@@ -337,76 +405,71 @@
               <label for="libelleErreur">Titre / Libellé de l'événement *</label>
               <input type="text" id="libelleErreur" name="libelleErreur" class="form-control" [(ngModel)]="eventForm.libelleErreur" required placeholder="Ex: Panne serveur, Alarme incendie..." />
             </div>
+
+            <div class="form-group col-span-2">
+              <label for="descriptionDetaillee">Description détaillée de l'événement</label>
+              <textarea id="descriptionDetaillee" name="descriptionDetaillee" class="form-control" rows="3" [(ngModel)]="eventForm.descriptionDetaillee" placeholder="Que s'est-il passé exactement ?"></textarea>
+            </div>
+
             <div class="form-group">
               <label for="dateHeureDetection">Date et heure de détection *</label>
               <input type="datetime-local" id="dateHeureDetection" name="dateHeureDetection" class="form-control" [(ngModel)]="eventForm.dateHeureDetection" required />
             </div>
+
             <div class="form-group">
-              <label for="detecteParSource">Source / Détecté par *</label>
+              <label for="declarePar">Détecté par (Nom de la personne) *</label>
+              <input type="text" id="declarePar" name="declarePar" class="form-control" [(ngModel)]="eventForm.declarePar" required placeholder="Ex: Jean Dupont" />
+            </div>
+
+            <div class="form-group">
+              <label for="detecteParSource">Source de détection *</label>
               <select id="detecteParSource" name="detecteParSource" class="form-control" [(ngModel)]="eventForm.detecteParSource" required>
                 @for (src of sources; track src) { <option [value]="src">{{ src }}</option> }
               </select>
             </div>
-            <div class="form-group">
-              <label for="natureEvenement">Nature de l'evenement *</label>
-              <select id="natureEvenement" name="natureEvenement" class="form-control" [(ngModel)]="eventForm.natureEvenement" required>
-                @for (nature of eventNatures; track nature) { <option [value]="nature">{{ nature }}</option> }
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="etat">Etat de l'evenement *</label>
-              <select id="etat" name="etat" class="form-control" [(ngModel)]="eventForm.etat" required>
-                @for (etat of etatsEvent; track etat) { <option [value]="etat">{{ etat }}</option> }
-              </select>
-            </div>
-            
-            <div class="form-group col-span-2">
-              <label for="descriptionDetaillee">Description détaillée de la situation</label>
-              <textarea id="descriptionDetaillee" name="descriptionDetaillee" class="form-control" rows="3" [(ngModel)]="eventForm.descriptionDetaillee" placeholder="Que s'est-il passé exactement ?"></textarea>
-            </div>
 
-            <div class="form-group col-span-2">
-              <label for="causesPossibles">Causes possibles de l'evenement</label>
-              <textarea id="causesPossibles" name="causesPossibles" class="form-control" rows="2" [(ngModel)]="eventForm.causesPossibles" placeholder="Ex: panne reseau, erreur de configuration, indisponibilite fournisseur"></textarea>
-            </div>
-          </div>
-
-          <div class="form-section-divider">
-            <h4 class="section-title">2. Contexte Technique (Optionnel)</h4>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="serviceOsAppli">Service ou Application touché(e)</label>
-              <input type="text" id="serviceOsAppli" name="serviceOsAppli" class="form-control" [(ngModel)]="eventForm.serviceOsAppli" placeholder="Ex: Portail RH, Base de données" />
-            </div>
-            <div class="form-group">
-              <label for="typeActif">Type d'actif *</label>
-              <input type="text" id="typeActif" name="typeActif" class="form-control" [(ngModel)]="eventForm.typeActif" required placeholder="Ex: Serveur, application, poste, reseau" />
-            </div>
-            <div class="form-group">
-              <label for="actifAffecte">Actif affecte *</label>
-              <input type="text" id="actifAffecte" name="actifAffecte" class="form-control" [(ngModel)]="eventForm.actifAffecte" required placeholder="Ex: VPN-PROD-01, Portail RH" />
-            </div>
-            <div class="form-group">
-              <label for="codeErreur">Code d'erreur affiché (le cas échéant)</label>
-              <input type="text" id="codeErreur" name="codeErreur" class="form-control" [(ngModel)]="eventForm.codeErreur" placeholder="Ex: 502 Bad Gateway" />
-            </div>
-            <div class="form-group">
-              <label for="equipementHardware">Équipement physique concerné</label>
-              <input type="text" id="equipementHardware" name="equipementHardware" class="form-control" [(ngModel)]="eventForm.equipementHardware" placeholder="Ex: Poste de travail PC-001" />
-            </div>
             <div class="form-group">
               <label for="idTicket">ID Ticket (Helpdesk)</label>
               <input type="text" id="idTicket" name="idTicket" class="form-control" [(ngModel)]="eventForm.idTicket" placeholder="Ex: GLPI-4091" />
             </div>
+
             <div class="form-group col-span-2">
-              <label for="commentaireSource">Personne ayant détecté / Précisions de la source</label>
-              <textarea id="commentaireSource" name="commentaireSource" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireSource" placeholder="Nom de la personne ou précision ajoutée par la source"></textarea>
+              <label for="causesPossibles">Causes possibles de l'événement</label>
+              <textarea id="causesPossibles" name="causesPossibles" class="form-control" rows="2" [(ngModel)]="eventForm.causesPossibles" placeholder="Ex: panne réseau, erreur de configuration..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="etat">État de l'événement *</label>
+              <select id="etat" name="etat" class="form-control" [(ngModel)]="eventForm.etat" required>
+                @for (etat of etatsEvent; track etat) { <option [value]="etat">{{ etat }}</option> }
+              </select>
+            </div>
+
+            <!-- Keeping natureEvenement but hiding it or putting it at the end to satisfy validation without breaking UI flow requested by user -->
+            <div class="form-group" style="display: none;">
+              <label for="natureEvenement">Nature de l'événement *</label>
+              <select id="natureEvenement" name="natureEvenement" class="form-control" [(ngModel)]="eventForm.natureEvenement">
+                @for (nature of eventNatures; track nature) { <option [value]="nature">{{ nature }}</option> }
+              </select>
             </div>
           </div>
 
           <div class="form-section-divider">
-            <h4 class="section-title">3. Évaluation et Impact</h4>
+            <h4 class="section-title">2. Appréciation et Évaluation</h4>
+          </div>
+          <div class="form-grid">
+            <div class="form-group col-span-2">
+              <label for="appreciation">Appréciation de l'événement</label>
+              <textarea id="appreciation" name="appreciation" class="form-control" rows="2" [(ngModel)]="eventForm.appreciation" placeholder="Appréciation globale de l'événement"></textarea>
+            </div>
+            <div class="form-group col-span-2">
+              <label for="evaluation">Évaluation de l'événement</label>
+              <textarea id="evaluation" name="evaluation" class="form-control" rows="2" [(ngModel)]="eventForm.evaluation" placeholder="Évaluation détaillée..."></textarea>
+            </div>
+          </div>
+
+          <div class="form-section-divider">
+            <h4 class="section-title">3. Évaluation de l'Impact (Pré-qualification)</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
@@ -417,12 +480,43 @@
               <label for="evaluation">Évaluation de l'événement</label>
               <textarea id="evaluation" name="evaluation" class="form-control" rows="2" [(ngModel)]="eventForm.evaluation" placeholder="Champ pour évaluer l'événement"></textarea>
             </div>
-            
             <div class="form-group">
               <label for="impactNiveau">Impact Global *</label>
               <select id="impactNiveau" name="impactNiveau" class="form-control" [(ngModel)]="eventForm.impactNiveau" required>
                 @for (level of eventImpactLevels; track level) { <option [value]="level">{{ level }}</option> }
               </select>
+            </div>
+            <div class="form-group">
+              <label for="impactConfidentialiteForm">Impact Confidentialité</label>
+              <select id="impactConfidentialiteForm" name="impactConfidentialiteForm" class="form-control" [(ngModel)]="eventForm.impactConfidentialite">
+                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="commentaireConfidentialite">Commentaire Confidentialité</label>
+              <textarea id="commentaireConfidentialite" name="commentaireConfidentialite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireConfidentialite"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="impactIntegriteForm">Impact Intégrité</label>
+              <select id="impactIntegriteForm" name="impactIntegriteForm" class="form-control" [(ngModel)]="eventForm.impactIntegrite">
+                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="commentaireIntegrite">Commentaire Intégrité</label>
+              <textarea id="commentaireIntegrite" name="commentaireIntegrite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireIntegrite"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="impactDisponibiliteForm">Impact Disponibilité</label>
+              <select id="impactDisponibiliteForm" name="impactDisponibiliteForm" class="form-control" [(ngModel)]="eventForm.impactDisponibilite">
+                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="commentaireDisponibilite">Commentaire Disponibilité</label>
+              <textarea id="commentaireDisponibilite" name="commentaireDisponibilite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireDisponibilite"></textarea>
             </div>
             <div class="form-group col-span-2">
               <label for="impact">Description de l'impact</label>
@@ -451,19 +545,35 @@
         <div class="modal-body">
           <p style="margin-bottom: 1rem;">Évaluation de l'événement : <strong>{{ selectedEvent()?.libelleErreur }}</strong></p>
           
-          <div class="form-group">
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="qualify" value="INCIDENT" [(ngModel)]="qualifyValue" />
-                <span class="font-bold text-danger">⚠️ Incident de Sécurité</span>
-                <span class="radio-desc">Il y a eu violation de la politique de sécurité. Ouvrir un plan de traitement.</span>
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="qualify" value="NON_INCIDENT" [(ngModel)]="qualifyValue" />
-                <span class="font-bold text-success">✅ Non-Incident (Faux Positif / Mineur)</span>
-                <span class="radio-desc">Ne nécessite pas d'investigation ou de traitement approfondi.</span>
-              </label>
+          <p style="margin-bottom: 1rem; color: #666; font-size: 0.9rem;">
+            Évaluez l’impact sur les critères de sécurité. Si un impact est Majeur ou Critique, l'événement sera automatiquement qualifié en Incident de sécurité.
+          </p>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="impactConfidentialite">Impact Confidentialité</label>
+              <select id="impactConfidentialite" name="impactConfidentialite" class="form-control" [(ngModel)]="eventForm.impactConfidentialite" (ngModelChange)="onQualificationChange()">
+                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
+              </select>
             </div>
+            <div class="form-group">
+              <label for="impactIntegrite">Impact Intégrité</label>
+              <select id="impactIntegrite" name="impactIntegrite" class="form-control" [(ngModel)]="eventForm.impactIntegrite" (ngModelChange)="onQualificationChange()">
+                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="impactDisponibilite">Impact Disponibilité</label>
+              <select id="impactDisponibilite" name="impactDisponibilite" class="form-control" [(ngModel)]="eventForm.impactDisponibilite" (ngModelChange)="onQualificationChange()">
+                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
+              </select>
+            </div>
+          </div>
+          <div class="qualification-result" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; font-weight: 600; text-align: center;"
+               [style.backgroundColor]="qualifyValue === 'INCIDENT' ? '#fee2e2' : '#dcfce7'"
+               [style.color]="qualifyValue === 'INCIDENT' ? '#991b1b' : '#166534'">
+            Résultat de la qualification : 
+            {{ qualifyValue === 'INCIDENT' ? '⚠️ INCIDENT DE SÉCURITÉ' : '✅ CLASSÉ SANS SUITE' }}
           </div>
         </div>
         <div class="modal-footer">
@@ -620,67 +730,107 @@
             </div>
           </div>
 
-          <!-- Section E: Détails et PCA -->
+          <!-- Section E: Continuité (PCA) -->
           <div class="form-section-divider">
-            <h4 class="section-title">5. Détails Complémentaires</h4>
+            <h4 class="section-title">5. Continuité</h4>
           </div>
           <div class="form-grid">
-            <div class="form-group">
-              <label>Y a-t-il des événements similaires ?</label>
-              <select class="form-control" name="evenementsSimilaires" [(ngModel)]="incidentForm.evenementsSimilaires">
+            <div class="form-group col-span-2">
+              <label>Y a-t-il un impact sur la continuité ?</label>
+              <select class="form-control" name="impactContinuite" [(ngModel)]="incidentForm.impactContinuite">
                 @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
               </select>
             </div>
-            <div class="form-group">
-              <label>Cet événement déclenche-t-il un changement ?</label>
-              <select class="form-control" name="changementDeclenche" [(ngModel)]="incidentForm.changementDeclenche">
-                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
-              </select>
-            </div>
-            @if (incidentForm.changementDeclenche) {
+            @if (incidentForm.impactContinuite) {
               <div class="form-group col-span-2">
-                <label for="changementDeclencheDescription">Veuillez détailler le changement à réaliser et les documents à mettre à jour</label>
-                <textarea id="changementDeclencheDescription" name="changementDeclencheDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.changementDeclencheDescription"></textarea>
-              </div>
-            }
-            <div class="form-group">
-              <label>Nécessite une mise à jour du PCA ?</label>
-              <select class="form-control" name="miseAJourPcaNecessaire" [(ngModel)]="incidentForm.miseAJourPcaNecessaire">
-                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
-              </select>
-            </div>
-            @if (incidentForm.miseAJourPcaNecessaire) {
-              <div class="form-group">
-                <label for="referencePca">Référence PCA</label>
-                <input type="text" id="referencePca" name="referencePca" class="form-control" [(ngModel)]="incidentForm.referencePca" />
+                <label for="impactContinuiteDescription">Description de l'impact sur la continuité</label>
+                <textarea id="impactContinuiteDescription" name="impactContinuiteDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.impactContinuiteDescription"></textarea>
               </div>
             }
           </div>
 
-          <!-- Section F: Risques -->
+          <!-- Section F: Risques Associés -->
           <div class="form-section-divider">
             <h4 class="section-title">6. Risques Associés</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <label for="risquesIdentifiesDescription">Risques identifiés suite à l'événement (Description)</label>
-              <textarea id="risquesIdentifiesDescription" name="risquesIdentifiesDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.risquesIdentifiesDescription"></textarea>
-            </div>
-            <div class="form-group">
-              <label for="risquesIdentifiesReference">Référence du risque identifié</label>
-              <input type="text" id="risquesIdentifiesReference" name="risquesIdentifiesReference" class="form-control" [(ngModel)]="incidentForm.risquesIdentifiesReference" />
-            </div>
-            <div class="form-group">
-              <label>Y a-t-il des risques à mettre à jour ?</label>
-              <select class="form-control" name="risquesAMettreAJour" [(ngModel)]="incidentForm.risquesAMettreAJour">
+              <label>Y a-t-il des risques associés ?</label>
+              <select class="form-control" name="hasRisquesAssocies" [(ngModel)]="incidentForm.hasRisquesAssocies">
                 @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
               </select>
             </div>
-            @if (incidentForm.risquesAMettreAJour) {
+            @if (incidentForm.hasRisquesAssocies) {
               <div class="form-group col-span-2">
-                <label for="risquesMiseAJourDescription">Risques et Description (ID - Description)</label>
-                <textarea id="risquesMiseAJourDescription" name="risquesMiseAJourDescription" class="form-control" rows="3" [(ngModel)]="incidentForm.risquesMiseAJourDescription" placeholder="Ex: R01 - Risque de sécurité réseau étendu..."></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                  <label style="margin: 0;">Liste des risques identifiés</label>
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="addRisque()">+ Ajouter un risque</button>
+                </div>
+                
+                @for (risque of incidentForm.risques; track $index) {
+                  <div class="risque-item" style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem; position: relative;">
+                    <button type="button" class="btn-close-modal" style="position: absolute; top: 0.5rem; right: 0.5rem;" (click)="removeRisque($index)">&times;</button>
+                    <div class="form-grid">
+                      <div class="form-group">
+                        <label>Référence du risque</label>
+                        <input type="text" class="form-control" [(ngModel)]="risque.reference" name="risqueRef{{$index}}" placeholder="Ex: R01" />
+                      </div>
+                      <div class="form-group col-span-2">
+                        <label>Description du risque</label>
+                        <textarea class="form-control" rows="2" [(ngModel)]="risque.description" name="risqueDesc{{$index}}" placeholder="Description détaillée..."></textarea>
+                      </div>
+                    </div>
+                  </div>
+                }
+                @if (!incidentForm.risques || incidentForm.risques.length === 0) {
+                  <p class="text-muted" style="font-size: 0.85rem; font-style: italic;">Aucun risque ajouté. Cliquez sur le bouton ci-dessus pour en ajouter un.</p>
+                }
               </div>
+              <div class="form-group">
+                <label>Y a-t-il des risques à mettre à jour ?</label>
+                <select class="form-control" name="risquesAMettreAJour" [(ngModel)]="incidentForm.risquesAMettreAJour">
+                  @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+                </select>
+              </div>
+              @if (incidentForm.risquesAMettreAJour) {
+                <div class="form-group col-span-2">
+                  <label for="risquesMiseAJourDescription">Risques et Description (ID - Description)</label>
+                  <textarea id="risquesMiseAJourDescription" name="risquesMiseAJourDescription" class="form-control" rows="3" [(ngModel)]="incidentForm.risquesMiseAJourDescription" placeholder="Ex: R01 - Risque de sécurité réseau étendu..."></textarea>
+                </div>
+              }
+            }
+          </div>
+
+          <!-- Section G: Capitalisation -->
+          <div class="form-section-divider">
+            <h4 class="section-title">7. Capitalisation</h4>
+          </div>
+          <div class="form-grid">
+            <div class="form-group col-span-2">
+              <label>Capitalisation (Oui/Non)</label>
+              <select class="form-control" name="capitalisation" [(ngModel)]="incidentForm.capitalisation">
+                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+              </select>
+            </div>
+            @if (incidentForm.capitalisation) {
+              <div class="form-group">
+                <label>Y a-t-il des événements similaires ?</label>
+                <select class="form-control" name="evenementsSimilaires" [(ngModel)]="incidentForm.evenementsSimilaires">
+                  @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Cet événement déclenche-t-il un changement ?</label>
+                <select class="form-control" name="changementDeclenche" [(ngModel)]="incidentForm.changementDeclenche">
+                  @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+                </select>
+              </div>
+              @if (incidentForm.changementDeclenche) {
+                <div class="form-group col-span-2">
+                  <label for="changementDeclencheDescription">Veuillez détailler le changement à réaliser</label>
+                  <textarea id="changementDeclencheDescription" name="changementDeclencheDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.changementDeclencheDescription"></textarea>
+                </div>
+              }
             }
           </div>
         </div>

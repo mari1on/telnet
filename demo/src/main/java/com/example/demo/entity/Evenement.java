@@ -65,6 +65,21 @@ public class Evenement {
     @Column(columnDefinition = "VARCHAR(255) default 'NON_QUALIFIE'")
     private String qualification = "NON_QUALIFIE";
 
+    private String impactConfidentialite;
+    
+    @Column(columnDefinition = "TEXT")
+    private String commentaireConfidentialite;
+
+    private String impactIntegrite;
+    
+    @Column(columnDefinition = "TEXT")
+    private String commentaireIntegrite;
+
+    private String impactDisponibilite;
+    
+    @Column(columnDefinition = "TEXT")
+    private String commentaireDisponibilite;
+
     private String qualifiePar;
 
     private String declarePar;

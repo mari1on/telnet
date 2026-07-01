@@ -29,6 +29,9 @@ public class IncidentService {
             evenementRepository.findById(incident.getEvenement().getId())
                 .ifPresent(incident::setEvenement);
         }
+        if (incident.getRisques() != null) {
+            incident.getRisques().forEach(r -> r.setIncident(incident));
+        }
         Incident saved = incidentRepository.save(incident);
         auditLogService.logAction(username, "Création de l'Incident N° " + saved.getId() + " lié à l'Événement N° " + (saved.getEvenement() != null ? saved.getEvenement().getId() : "null"));
         return saved;
@@ -74,13 +77,25 @@ public class IncidentService {
             existing.setCommentaireEfficacite(details.getCommentaireEfficacite());
 
             // Details, PCA and risks
+            existing.setHasRisquesAssocies(details.getHasRisquesAssocies());
+            existing.setImpactContinuite(details.getImpactContinuite());
+            existing.setImpactContinuiteDescription(details.getImpactContinuiteDescription());
+            existing.setCapitalisation(details.getCapitalisation());
+
             existing.setEvenementsSimilaires(details.getEvenementsSimilaires());
             existing.setChangementDeclenche(details.getChangementDeclenche());
             existing.setChangementDeclencheDescription(details.getChangementDeclencheDescription());
             existing.setMiseAJourPcaNecessaire(details.getMiseAJourPcaNecessaire());
             existing.setReferencePca(details.getReferencePca());
-            existing.setRisquesIdentifiesDescription(details.getRisquesIdentifiesDescription());
-            existing.setRisquesIdentifiesReference(details.getRisquesIdentifiesReference());
+
+            existing.getRisques().clear();
+            if (details.getRisques() != null) {
+                details.getRisques().forEach(r -> {
+                    r.setIncident(existing);
+                    existing.getRisques().add(r);
+                });
+            }
+
             existing.setRisquesAMettreAJour(details.getRisquesAMettreAJour());
             existing.setRisquesMiseAJour(details.getRisquesMiseAJour());
             existing.setRisquesMiseAJourDescription(details.getRisquesMiseAJourDescription());

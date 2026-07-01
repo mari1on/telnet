@@ -28,6 +28,18 @@ interface Evenement {
   qualification?: string;
   qualifiePar?: string;
   declarePar?: string;
+  impactConfidentialite?: string;
+  commentaireConfidentialite?: string;
+  impactIntegrite?: string;
+  commentaireIntegrite?: string;
+  impactDisponibilite?: string;
+  commentaireDisponibilite?: string;
+}
+
+interface Risque {
+  id?: number;
+  reference: string;
+  description: string;
 }
 
 interface Incident {
@@ -60,13 +72,16 @@ interface Incident {
   dateMesureEfficacite: string;
   efficacite: string;
   commentaireEfficacite: string;
+  hasRisquesAssocies: boolean;
+  impactContinuite: boolean;
+  impactContinuiteDescription: string;
+  capitalisation: boolean;
   evenementsSimilaires: boolean;
   changementDeclenche: boolean;
   changementDeclencheDescription: string;
   miseAJourPcaNecessaire: boolean;
   referencePca: string;
-  risquesIdentifiesDescription: string;
-  risquesIdentifiesReference: string;
+  risques: Risque[];
   risquesAMettreAJour: boolean;
   risquesMiseAJour: string;
   risquesMiseAJourDescription: string;
@@ -111,6 +126,7 @@ export class DashboardComponent implements OnInit {
   eventNatures = ['Indisponibilite', 'Degradation', 'Erreur applicative', 'Alerte securite', 'Suspicion de fraude', 'Autre'];
   etatsEvent = ['Ouvert', 'En cours', 'Clos'];
   eventImpactLevels = ['Mineur', 'Majeur'];
+  impactOptions = ['Mineur/Aucun', 'Majeur', 'Critique'];
   etatsMesure = ['En cours', 'Terminé', 'En attente'];
   etatsTraitement = ['En cours', 'Clôturé', 'Suspendu'];
   yesNoOptions = [
@@ -194,7 +210,13 @@ export class DashboardComponent implements OnInit {
       impactCommentaire: '',
       typeActif: '',
       actifAffecte: '',
-      qualification: 'NON_QUALIFIE'
+      qualification: 'NON_QUALIFIE',
+      impactConfidentialite: 'Mineur/Aucun',
+      commentaireConfidentialite: '',
+      impactIntegrite: 'Mineur/Aucun',
+      commentaireIntegrite: '',
+      impactDisponibilite: 'Mineur/Aucun',
+      commentaireDisponibilite: ''
     };
   }
 
@@ -228,13 +250,16 @@ export class DashboardComponent implements OnInit {
       dateMesureEfficacite: '',
       efficacite: '',
       commentaireEfficacite: '',
+      hasRisquesAssocies: false,
+      impactContinuite: false,
+      impactContinuiteDescription: '',
+      capitalisation: false,
       evenementsSimilaires: false,
       changementDeclenche: false,
       changementDeclencheDescription: '',
       miseAJourPcaNecessaire: false,
       referencePca: '',
-      risquesIdentifiesDescription: '',
-      risquesIdentifiesReference: '',
+      risques: [],
       risquesAMettreAJour: false,
       risquesMiseAJour: '',
       risquesMiseAJourDescription: '',
@@ -273,6 +298,105 @@ export class DashboardComponent implements OnInit {
     const total = this.events().length;
     return total === 0 ? 0 : Math.round((this.getIncidentCount() / total) * 100);
   }
+  
+  // --- NOUVEAUX KPIs RSSI ---
+  
+  getIncidentsEnCours(): number {
+    return this.incidents().filter(i => i.traitementEtat !== 'Clôturé').length;
+  }
+
+  getIncidentsTraites(): number {
+    return this.incidents().filter(i => i.traitementEtat === 'Clôturé').length;
+  }
+
+  getRisquesTouchesCount(): number {
+    return this.incidents().reduce((total, i) => total + (i.risques ? i.risques.length : 0), 0);
+  }
+
+  getEvenementsClasses(): number {
+    return this.events().filter(e => e.qualification === 'NON_INCIDENT').length;
+  }
+
+  // Rough estimation of average duration (indisponibilité) in minutes
+  getTempsMoyenIndisponibilite(): string {
+    const incs = this.incidents().filter(i => i.dureeIndisponibilite);
+    if (incs.length === 0) return 'N/A';
+    
+    let totalMins = 0;
+    incs.forEach(inc => {
+      totalMins += this.parseDurationToMinutes(inc.dureeIndisponibilite);
+    });
+    
+    const avg = Math.round(totalMins / incs.length);
+    return this.formatMinutesToDuration(avg);
+  }
+
+  getTempsMoyenTraitement(): string {
+    const incs = this.incidents().filter(i => i.dureeTraitement);
+    if (incs.length === 0) return 'N/A';
+    
+    let totalMins = 0;
+    incs.forEach(inc => {
+      totalMins += this.parseDurationToMinutes(inc.dureeTraitement);
+    });
+    
+    const avg = Math.round(totalMins / incs.length);
+    return this.formatMinutesToDuration(avg);
+  }
+
+  private parseDurationToMinutes(durationStr: string): number {
+    if (!durationStr) return 0;
+    let mins = 0;
+    const hMatch = durationStr.match(/(\d+)\s*h/i);
+    const mMatch = durationStr.match(/(\d+)\s*m/i);
+    if (hMatch) mins += parseInt(hMatch[1], 10) * 60;
+    if (mMatch) mins += parseInt(mMatch[1], 10);
+    return mins;
+  }
+
+  private formatMinutesToDuration(mins: number): string {
+    const hours = Math.floor(mins / 60);
+    const m = mins % 60;
+    return hours > 0 ? `${hours}h ${m}m` : `${m}m`;
+  }
+
+  getRisquesList() {
+    return this.incidents().flatMap(i => 
+      (i.risques || []).map(r => ({
+        ref: r.reference,
+        desc: r.description,
+        incidentId: i.id
+      }))
+    );
+  }
+
+  getEventsByYear() {
+    // Group events by YYYY-MM
+    const groups: { [key: string]: number } = {};
+    this.events().forEach(e => {
+      const ym = e.dateHeureDetection ? e.dateHeureDetection.slice(0, 7) : 'Inconnu';
+      groups[ym] = (groups[ym] || 0) + 1;
+    });
+    return Object.keys(groups).sort().map(k => ({ date: k, count: groups[k] }));
+  }
+
+  getTempsTraitementChartData() {
+    return this.incidents()
+      .filter(i => i.dureeTraitement)
+      .map(i => {
+        const mins = this.parseDurationToMinutes(i.dureeTraitement);
+        const pct = Math.min(100, Math.max(5, (mins / 500) * 100));
+        return {
+          incidentId: i.id,
+          minutes: mins,
+          label: i.dureeTraitement,
+          heightPct: pct
+        };
+      })
+      .slice(-10); // Show last 10 incidents
+  }
+
+  // --------------------------
 
   getIncidentEvent(incident: Incident): Evenement | undefined {
     const embedded = incident.evenement as Partial<Evenement> | undefined;
@@ -298,6 +422,9 @@ export class DashboardComponent implements OnInit {
     };
 
     this.incidentForm.typesIncident = this.incidentForm.typesIncident || [];
+    this.incidentForm.hasRisquesAssocies = this.incidentForm.hasRisquesAssocies ?? false;
+    this.incidentForm.impactContinuite = this.incidentForm.impactContinuite ?? false;
+    this.incidentForm.capitalisation = this.incidentForm.capitalisation ?? false;
     this.incidentForm.evenementsSimilaires = this.incidentForm.evenementsSimilaires ?? false;
     this.incidentForm.changementDeclenche = this.incidentForm.changementDeclenche ?? false;
     this.incidentForm.miseAJourPcaNecessaire = this.incidentForm.miseAJourPcaNecessaire ?? false;
@@ -418,10 +545,6 @@ export class DashboardComponent implements OnInit {
       this.errorMsg.set('La nature et l etat de l evenement sont obligatoires.');
       return;
     }
-    if (!this.isFilled(this.eventForm.typeActif) || !this.isFilled(this.eventForm.actifAffecte)) {
-      this.errorMsg.set('Le type d actif et l actif affecte sont obligatoires.');
-      return;
-    }
     if (!this.isFilled(this.eventForm.impactNiveau)) {
       this.errorMsg.set('Le niveau d impact de l evenement est obligatoire.');
       return;
@@ -459,8 +582,34 @@ export class DashboardComponent implements OnInit {
   // --- Qualification Operations ---
   openQualify(event: Evenement): void {
     this.selectedEvent.set(event);
-    this.qualifyValue = event.qualification === 'NON_INCIDENT' ? 'NON_INCIDENT' : 'INCIDENT';
+    this.eventForm = { ...event };
+    
+    // Default values if not set
+    this.eventForm.impactConfidentialite = this.eventForm.impactConfidentialite || 'Mineur/Aucun';
+    this.eventForm.impactIntegrite = this.eventForm.impactIntegrite || 'Mineur/Aucun';
+    this.eventForm.impactDisponibilite = this.eventForm.impactDisponibilite || 'Mineur/Aucun';
+    
+    this.onQualificationChange();
     this.showQualifyForm.set(true);
+  }
+
+  onQualificationChange(): void {
+    const isIncident = [
+      this.eventForm.impactConfidentialite,
+      this.eventForm.impactIntegrite,
+      this.eventForm.impactDisponibilite
+    ].some(val => val === 'Majeur' || val === 'Critique');
+    
+    this.qualifyValue = isIncident ? 'INCIDENT' : 'NON_INCIDENT';
+  }
+
+  // --- Risks Handling ---
+  addRisque(): void {
+    this.incidentForm.risques.push({ reference: '', description: '' });
+  }
+
+  removeRisque(index: number): void {
+    this.incidentForm.risques.splice(index, 1);
   }
 
   submitQualification(): void {
@@ -469,6 +618,9 @@ export class DashboardComponent implements OnInit {
 
     const previousQualification = event.qualification;
     event.qualification = this.qualifyValue;
+    event.impactConfidentialite = this.eventForm.impactConfidentialite;
+    event.impactIntegrite = this.eventForm.impactIntegrite;
+    event.impactDisponibilite = this.eventForm.impactDisponibilite;
     
     this.apiService.updateEvent(event.id!, event).subscribe({
       next: () => {
