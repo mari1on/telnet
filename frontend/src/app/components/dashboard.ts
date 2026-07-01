@@ -100,12 +100,14 @@ interface Incident {
   styleUrl: './dashboard.css'
 })
 export class DashboardComponent implements OnInit {
-  activeTab = signal<'events' | 'incidents' | 'logs' | 'stats'>('events');
+  activeTab = signal<'stats' | 'events' | 'incidents' | 'logs'>('stats');
 
   // Lists
   events = signal<Evenement[]>([]);
   incidents = signal<Incident[]>([]);
   logs = signal<any[]>([]);
+
+  isSubmitting = signal<boolean>(false);
 
   // Selected Items for Forms/Modals
   selectedEvent = signal<Evenement | null>(null);
@@ -593,6 +595,9 @@ export class DashboardComponent implements OnInit {
     }
     this.eventForm.impactMineur = this.eventForm.impactNiveau === 'MINEUR';
 
+    if (this.isSubmitting()) return;
+    this.isSubmitting.set(true);
+
     const operation = this.selectedEvent() 
       ? this.apiService.updateEvent(this.selectedEvent()!.id!, this.eventForm)
       : this.apiService.createEvent(this.eventForm);
@@ -603,8 +608,12 @@ export class DashboardComponent implements OnInit {
         this.showEventForm.set(false);
         this.loadEvents();
         this.loadLogs();
+        this.isSubmitting.set(false);
       },
-      error: () => this.errorMsg.set('Erreur de validation ou problème de connexion serveur.')
+      error: () => {
+        this.errorMsg.set('Erreur de validation ou problème de connexion serveur.');
+        this.isSubmitting.set(false);
+      }
     });
   }
 
@@ -818,6 +827,9 @@ export class DashboardComponent implements OnInit {
     // Sanitize dates to prevent backend parse errors when strings are empty
     const payload = this.sanitizeIncidentPayload(this.incidentForm);
 
+    if (this.isSubmitting()) return;
+    this.isSubmitting.set(true);
+
     const operation = this.selectedIncident()
       ? this.apiService.updateIncident(this.selectedIncident()!.id!, payload)
       : this.apiService.createIncident(payload);
@@ -829,8 +841,12 @@ export class DashboardComponent implements OnInit {
         this.loadIncidents();
         this.loadEvents();
         this.loadLogs();
+        this.isSubmitting.set(false);
       },
-      error: () => this.errorMsg.set('Erreur lors de la sauvegarde de l\'incident.')
+      error: () => {
+        this.errorMsg.set('Erreur lors de la sauvegarde de l\'incident.');
+        this.isSubmitting.set(false);
+      }
     });
   }
 
@@ -870,11 +886,12 @@ export class DashboardComponent implements OnInit {
       this.eventForm.detecteParSource = "Supervision";
       this.eventForm.impactNiveau = "MAJEUR";
       
-      if (this.incidentForm && this.showIncidentForm()) {
-        this.incidentForm.preconisation = this.incidentForm.preconisation || "Mettre en place une redondance serveur (cluster HA) et un onduleur de secours.";
-        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Remplacement de l'alimentation défectueuse et restauration depuis la dernière sauvegarde.";
-        this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Interruption du service d'expédition pendant 2 heures.";
-      }
+      this.incidentForm.preconisation = this.incidentForm.preconisation || "Mettre en place une redondance serveur (cluster HA) et un onduleur de secours.";
+      this.incidentForm.traitementAction = this.incidentForm.traitementAction || "Remplacement de l'alimentation défectueuse et restauration depuis la dernière sauvegarde.";
+      this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Interruption du service d'expédition pendant 2 heures.";
+      this.incidentForm.commentaireEfficacite = this.incidentForm.commentaireEfficacite || "Atténuation réussie mais l'impact a été critique pendant la panne.";
+      this.incidentForm.changementDeclencheDescription = this.incidentForm.changementDeclencheDescription || "Déploiement du patch d'urgence 4.2.";
+      
     } else if (title.includes('feu') || title.includes('incendie') || title.includes('physique')) {
       this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Une alarme incendie a été déclenchée dans le datacenter. L'accès physique a été temporairement restreint.";
       this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Surchauffe d'équipement ou alarme défectueuse.";

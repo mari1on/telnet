@@ -46,8 +46,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 2rem;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 50;
   box-shadow: var(--shadow-sm);
 }
@@ -442,14 +441,14 @@ tbody tr:hover {
 }
 
 .btn-primary {
-  background: #93c5fd;
+  background: #80A5D5;
   color: #1e3a8a;
   box-shadow: var(--shadow-sm);
-  border-color: #93c5fd;
+  border-color: #80A5D5;
 }
 
 .btn-primary:hover {
-  background: #93c5fd;
+  background: #80A5D5;
   box-shadow: var(--shadow-md);
 }
 

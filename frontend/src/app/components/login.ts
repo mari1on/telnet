@@ -18,7 +18,7 @@ import { ApiService } from '../api.service';
       <div class="auth-card panel">
         
         <div class="logo-area">
-          <div class="logo-text">TELNET</div>
+          <img src="assets/logo.png" alt="TELNET Logo" style="height: 60px;">
         </div>
 
         <div class="card-header" style="text-align: center;">
