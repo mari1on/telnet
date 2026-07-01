@@ -1,0 +1,394 @@
+{
+	"info": {
+		"_postman_id": "c62adbc0-6cb5-4cf5-8178-95ffc0cb8788",
+		"name": "Telnet Backend API",
+		"description": "API endpoints to test User, Evenement, and Incident management in the Telnet application.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/users",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"securepassword\",\n    \"email\": \"admin@telnet.com\",\n    \"role\": \"ROLE_ADMIN\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/users",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/users/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin_updated\",\n    \"password\": \"newpassword123\",\n    \"email\": \"admin_updated@telnet.com\",\n    \"role\": \"ROLE_ADMIN\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/users/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/users/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Evenements",
+			"item": [
+				{
+					"name": "Get All Evenements",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/evenements",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"evenements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Evenement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"descriptionDetaillee\": \"Une défaillance critique du serveur d'application Tomcat a été détectée suite à une fuite de mémoire.\",\n    \"dateHeureDetection\": \"2026-06-21T10:30:00\",\n    \"detecteParSource\": \"HELP_DESK\",\n    \"idTicket\": \"TKT-99882\",\n    \"commentaireSource\": \"Signalé par le technicien de garde.\",\n    \"serviceOsAppli\": \"Tomcat / Linux Ubuntu 22.04\",\n    \"equipementHardware\": \"Serveur Virtuel VM-APP-01\",\n    \"libelleErreur\": \"OutOfMemoryError: Java heap space\",\n    \"codeErreur\": \"ERR-TOMCAT-005\",\n    \"causesPossibles\": \"Fuite de mémoire dans la servlet de traitement des rapports.\",\n    \"etat\": \"CLOSE\",\n    \"appreciation\": \"Résolu rapidement par redémarrage et augmentation de la taille du heap.\",\n    \"evaluation\": \"Impact modéré sur la production.\",\n    \"impact\": \"Indisponibilité du service pendant 15 minutes\",\n    \"impactMineur\": false,\n    \"impactCommentaire\": \"Nécessite une correction du code pour éviter les récurrences.\",\n    \"typeActif\": \"Logiciel\",\n    \"actifAffecte\": \"Application Métier Telnet\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/evenements",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"evenements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Evenement by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/evenements/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"evenements",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Evenement",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"descriptionDetaillee\": \"Une défaillance critique mise à jour.\",\n    \"dateHeureDetection\": \"2026-06-21T10:30:00\",\n    \"detecteParSource\": \"HELP_DESK\",\n    \"idTicket\": \"TKT-99882-REV\",\n    \"commentaireSource\": \"Mis à jour avec plus de détails.\",\n    \"serviceOsAppli\": \"Tomcat / Linux\",\n    \"equipementHardware\": \"Serveur Virtuel VM-APP-01\",\n    \"libelleErreur\": \"OutOfMemoryError\",\n    \"codeErreur\": \"ERR-TOMCAT-005\",\n    \"causesPossibles\": \"Fuite de mémoire identifiée.\",\n    \"etat\": \"CLOSE\",\n    \"appreciation\": \"Validé\",\n    \"evaluation\": \"Impact mineur après correctif\",\n    \"impact\": \"Indisponibilité\",\n    \"impactMineur\": true,\n    \"impactCommentaire\": \"Impact mineur désormais.\",\n    \"typeActif\": \"Logiciel\",\n    \"actifAffecte\": \"App\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/evenements/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"evenements",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Evenement",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/evenements/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"evenements",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Incidents",
+			"item": [
+				{
+					"name": "Get All Incidents",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/incidents",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"incidents"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Incident",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"typesIncident\": [\n        \"Défaillance technique\",\n        \"déni de service\"\n    ],\n    \"mesureAction\": \"Redémarrage des services Tomcat et nettoyage du cache.\",\n    \"mesureResponsable\": \"Jean Dupont\",\n    \"mesureDelai\": \"20 minutes\",\n    \"mesureEtat\": \"Terminé\",\n    \"mesureDDT\": \"2026-06-21\",\n    \"dureeAttenuation\": \"15 minutes\",\n    \"heureAttenuation\": \"10:45:00\",\n    \"traitementAction\": \"Augmentation de la mémoire JVM (Xmx) à 4G et optimisation du code Java.\",\n    \"traitementDDT\": \"2026-06-21\",\n    \"traitementHDT\": \"11:00:00\",\n    \"traitementResponsable\": \"Alice Martin\",\n    \"traitementEtat\": \"Clôturé\",\n    \"traitementDateCloture\": \"2026-06-21\",\n    \"traitementHeureCloture\": \"12:00:00\",\n    \"dureeTraitement\": \"1 heure\",\n    \"heureTraitement\": \"12:00:00\",\n    \"preconisation\": \"Surveiller l'utilisation de la mémoire via Prometheus/Grafana.\",\n    \"actionCorrective\": \"Refactoring de la méthode de génération des rapports pour libérer les ressources.\",\n    \"correctiveResponsable\": \"Alice Martin\",\n    \"correctiveDateDebut\": \"2026-06-22\",\n    \"correctiveDateCloture\": \"2026-06-23\",\n    \"dateMesureEfficacite\": \"2026-06-25\",\n    \"efficacite\": \"Excellente - plus de fuite de mémoire détectée lors des tests de charge.\",\n    \"evenement\": {\n        \"id\": 1\n    }\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/incidents",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"incidents"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Incident by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/incidents/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"incidents",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Incident",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"typesIncident\": [\n        \"Défaillance technique\"\n    ],\n    \"mesureAction\": \"Mise à jour des mesures.\",\n    \"mesureResponsable\": \"Jean Dupont\",\n    \"mesureDelai\": \"15 minutes\",\n    \"mesureEtat\": \"Terminé\",\n    \"mesureDDT\": \"2026-06-21\",\n    \"dureeAttenuation\": \"10 minutes\",\n    \"heureAttenuation\": \"10:40:00\",\n    \"traitementAction\": \"Optimisation du garbage collector.\",\n    \"traitementDDT\": \"2026-06-21\",\n    \"traitementHDT\": \"11:00:00\",\n    \"traitementResponsable\": \"Alice Martin\",\n    \"traitementEtat\": \"Clôturé\",\n    \"traitementDateCloture\": \"2026-06-21\",\n    \"traitementHeureCloture\": \"11:30:00\",\n    \"dureeTraitement\": \"30 minutes\",\n    \"heureTraitement\": \"11:30:00\",\n    \"preconisation\": \"Aucune\",\n    \"actionCorrective\": \"Optimisation GC\",\n    \"correctiveResponsable\": \"Alice Martin\",\n    \"correctiveDateDebut\": \"2026-06-22\",\n    \"correctiveDateCloture\": \"2026-06-22\",\n    \"dateMesureEfficacite\": \"2026-06-25\",\n    \"efficacite\": \"Optimale\",\n    \"evenement\": {\n        \"id\": 1\n    }\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/incidents/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"incidents",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Incident",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/api/incidents/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"incidents",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
