@@ -184,6 +184,7 @@ export class DashboardComponent implements OnInit {
   constructor(protected apiService: ApiService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
+    this.activeTab.set(this.apiService.isRssi() ? 'stats' : 'events');
     this.loadEvents();
     this.loadIncidents();
     this.loadLogs();
@@ -300,9 +301,9 @@ export class DashboardComponent implements OnInit {
     const total = this.events().length;
     return total === 0 ? 0 : Math.round((this.getIncidentCount() / total) * 100);
   }
-  
+
   // --- NOUVEAUX KPIs RSSI ---
-  
+
   getIncidentsEnCours(): number {
     return this.incidents().filter(i => i.traitementEtat !== 'Clôturé').length;
   }
@@ -323,12 +324,12 @@ export class DashboardComponent implements OnInit {
   getTempsMoyenIndisponibilite(): string {
     const incs = this.incidents().filter(i => i.dureeIndisponibilite);
     if (incs.length === 0) return 'N/A';
-    
+
     let totalMins = 0;
     incs.forEach(inc => {
       totalMins += this.parseDurationToMinutes(inc.dureeIndisponibilite);
     });
-    
+
     const avg = Math.round(totalMins / incs.length);
     return this.formatMinutesToDuration(avg);
   }
@@ -336,12 +337,12 @@ export class DashboardComponent implements OnInit {
   getTempsMoyenTraitement(): string {
     const incs = this.incidents().filter(i => i.dureeTraitement);
     if (incs.length === 0) return 'N/A';
-    
+
     let totalMins = 0;
     incs.forEach(inc => {
       totalMins += this.parseDurationToMinutes(inc.dureeTraitement);
     });
-    
+
     const avg = Math.round(totalMins / incs.length);
     return this.formatMinutesToDuration(avg);
   }
@@ -363,7 +364,7 @@ export class DashboardComponent implements OnInit {
   }
 
   getRisquesList() {
-    return this.incidents().flatMap(i => 
+    return this.incidents().flatMap(i =>
       (i.risques || []).map(r => ({
         ref: r.reference,
         desc: r.description,
@@ -478,39 +479,14 @@ export class DashboardComponent implements OnInit {
 
   loadEvents(): void {
     this.apiService.getEvents().subscribe({
-      next: (data) => {
-        this.events.set(data);
-        // Retro-create missing incidents for any event qualified as INCIDENT
-        const incidents = this.incidents();
-        data.forEach(event => {
-          if (event.qualification === 'INCIDENT' && !incidents.find(inc => inc.evenement?.id === event.id)) {
-             const newIncident = this.sanitizeIncidentPayload(this.initIncidentForm(event.id!));
-             this.apiService.createIncident(newIncident).subscribe({
-               next: (saved) => this.incidents.set([...this.incidents(), saved])
-             });
-          }
-        });
-      },
+      next: (data) => this.events.set(data),
       error: () => this.errorMsg.set('Erreur lors du chargement des événements.')
     });
   }
 
   loadIncidents(): void {
     this.apiService.getIncidents().subscribe({
-      next: (data) => {
-        this.incidents.set(data);
-        // Retro-create missing incidents for any event qualified as INCIDENT
-        const events = this.events();
-        if (events.length > 0) {
-          events.forEach(event => {
-            if (event.qualification === 'INCIDENT' && !data.find(inc => inc.evenement?.id === event.id)) {
-               this.apiService.createIncident(this.initIncidentForm(event.id!)).subscribe({
-                 next: (saved) => this.incidents.set([...this.incidents(), saved])
-               });
-            }
-          });
-        }
-      },
+      next: (data) => this.incidents.set(data),
       error: () => this.errorMsg.set('Erreur lors du chargement des incidents.')
     });
   }
@@ -560,7 +536,10 @@ export class DashboardComponent implements OnInit {
         this.errorMsg.set('');
         this.showUserModal.set(false);
       },
-      error: () => this.errorMsg.set('Erreur lors de la sauvegarde du profil.')
+      error: (err) => {
+        const message = err?.error?.message || 'Erreur lors de la sauvegarde du profil.';
+        this.errorMsg.set(message);
+      }
     });
   }
 
@@ -598,7 +577,7 @@ export class DashboardComponent implements OnInit {
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
 
-    const operation = this.selectedEvent() 
+    const operation = this.selectedEvent()
       ? this.apiService.updateEvent(this.selectedEvent()!.id!, this.eventForm)
       : this.apiService.createEvent(this.eventForm);
 
@@ -634,12 +613,14 @@ export class DashboardComponent implements OnInit {
   openQualify(event: Evenement): void {
     this.selectedEvent.set(event);
     this.eventForm = { ...event };
-    
-    // Default values if not set
+
     this.eventForm.impactConfidentialite = this.eventForm.impactConfidentialite || 'Mineur/Aucun';
     this.eventForm.impactIntegrite = this.eventForm.impactIntegrite || 'Mineur/Aucun';
     this.eventForm.impactDisponibilite = this.eventForm.impactDisponibilite || 'Mineur/Aucun';
-    
+    this.eventForm.commentaireConfidentialite = '';
+    this.eventForm.commentaireIntegrite = '';
+    this.eventForm.commentaireDisponibilite = '';
+
     this.onQualificationChange();
     this.showQualifyForm.set(true);
   }
@@ -650,7 +631,7 @@ export class DashboardComponent implements OnInit {
       this.eventForm.impactIntegrite,
       this.eventForm.impactDisponibilite
     ].some(val => val === 'Majeur' || val === 'Critique');
-    
+
     this.qualifyValue = isIncident ? 'INCIDENT' : 'NON_INCIDENT';
   }
 
@@ -672,36 +653,49 @@ export class DashboardComponent implements OnInit {
     event.impactConfidentialite = this.eventForm.impactConfidentialite;
     event.impactIntegrite = this.eventForm.impactIntegrite;
     event.impactDisponibilite = this.eventForm.impactDisponibilite;
-    
+    event.commentaireConfidentialite = this.eventForm.commentaireConfidentialite;
+    event.commentaireIntegrite = this.eventForm.commentaireIntegrite;
+    event.commentaireDisponibilite = this.eventForm.commentaireDisponibilite;
+
     this.apiService.updateEvent(event.id!, event).subscribe({
       next: () => {
         this.showQualifyForm.set(false);
-        
+
         if (this.qualifyValue === 'INCIDENT') {
           const existingIncident = this.findIncidentForEvent(event.id!);
           if (existingIncident) {
             this.openEditIncident(existingIncident);
             this.successMsg.set('Qualification mise à jour. Plan de traitement existant ouvert.');
-          } else {
-            // Auto-create the incident in the backend
+            this.loadEvents();
+            this.loadIncidents();
+            this.loadLogs();
+          } else if (previousQualification !== 'INCIDENT') {
             const newIncident = this.sanitizeIncidentPayload(this.initIncidentForm(event.id!));
             this.apiService.createIncident(newIncident).subscribe({
               next: (savedIncident) => {
+                this.incidents.set([...this.incidents(), savedIncident]);
                 this.incidentForm = savedIncident;
                 this.prepareIncidentFormDefaults();
                 this.selectedIncident.set(savedIncident);
                 this.showIncidentForm.set(true);
                 this.successMsg.set('Événement qualifié comme incident. Complétez le plan de traitement.');
-                this.loadIncidents(); // Refresh the list
+                this.loadEvents();
+                this.loadIncidents();
+                this.loadLogs();
               },
               error: () => this.errorMsg.set('Erreur lors de la création du plan d\'incident.')
             });
+          } else {
+            this.successMsg.set('Qualification incident confirmée.');
+            this.loadEvents();
+            this.loadIncidents();
+            this.loadLogs();
           }
         } else {
           this.successMsg.set('Événement qualifié comme non-incident.');
+          this.loadEvents();
+          this.loadLogs();
         }
-        this.loadEvents();
-        this.loadLogs();
       },
       error: () => this.errorMsg.set('Erreur lors de la qualification.')
     });
@@ -778,12 +772,12 @@ export class DashboardComponent implements OnInit {
       const startDt = new Date(event.dateHeureDetection);
       const endDt = new Date(`${this.incidentForm.mesureDDT}T${this.incidentForm.heureAttenuation}`);
       const diffMs = endDt.getTime() - startDt.getTime();
-      
+
       if (!isNaN(diffMs) && diffMs >= 0) {
         const diffMins = Math.floor(diffMs / 60000);
         const hours = Math.floor(diffMins / 60);
         const mins = diffMins % 60;
-        
+
         this.incidentForm.dureeAttenuation = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
       }
     } catch (e) {
@@ -793,19 +787,19 @@ export class DashboardComponent implements OnInit {
 
   onTreatmentTimeChange(): void {
     // We compute treatment duration: time between traitementDDT + traitementHDT and traitementDateCloture + traitementHeureCloture
-    if (!this.incidentForm.traitementDDT || !this.incidentForm.traitementHDT || 
+    if (!this.incidentForm.traitementDDT || !this.incidentForm.traitementHDT ||
         !this.incidentForm.traitementDateCloture || !this.incidentForm.traitementHeureCloture) return;
 
     try {
       const startDt = new Date(`${this.incidentForm.traitementDDT}T${this.incidentForm.traitementHDT}`);
       const endDt = new Date(`${this.incidentForm.traitementDateCloture}T${this.incidentForm.traitementHeureCloture}`);
       const diffMs = endDt.getTime() - startDt.getTime();
-      
+
       if (!isNaN(diffMs) && diffMs >= 0) {
         const diffMins = Math.floor(diffMs / 60000);
         const hours = Math.floor(diffMins / 60);
         const mins = diffMins % 60;
-        
+
         this.incidentForm.dureeTraitement = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
       }
     } catch (e) {
@@ -867,77 +861,157 @@ export class DashboardComponent implements OnInit {
     this.apiService.logout();
   }
 
-  // --- AI Smart Fill (Simulation) ---
-  magicFill(): void {
-    const title = (this.eventForm.libelleErreur || '').toLowerCase();
-    if (!title) {
-      this.errorMsg.set('Veuillez dicter ou écrire un titre d\'abord.');
+  // --- AI Smart Fill (context-aware) ---
+  magicFill(targetField?: string, formContext: 'event' | 'incident' = 'event'): void {
+    const title = (
+      this.eventForm.libelleErreur ||
+      this.selectedEvent()?.libelleErreur ||
+      ''
+    ).toLowerCase();
+
+    if (!title && !targetField) {
+      this.errorMsg.set('Veuillez d\'abord saisir un titre de problème.');
       return;
     }
 
-    // Simulate AI generation based on keywords
-    if (title.includes('panne') || title.includes('serveur')) {
-      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Le serveur principal a cessé de répondre aux requêtes, entraînant une indisponibilité temporaire des services.";
-      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Coupure réseau, défaillance matérielle ou surcharge système.";
-      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "Aucune donnée n'a été exfiltrée, impact nul sur la confidentialité.";
-      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "Les services sont totalement inaccessibles pour tous les utilisateurs métiers.";
-      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "Les données existantes n'ont pas été altérées.";
-      this.eventForm.natureEvenement = "Indisponibilite";
-      this.eventForm.detecteParSource = "Supervision";
-      this.eventForm.impactNiveau = "MAJEUR";
-      
-      this.incidentForm.preconisation = this.incidentForm.preconisation || "Mettre en place une redondance serveur (cluster HA) et un onduleur de secours.";
-      this.incidentForm.traitementAction = this.incidentForm.traitementAction || "Remplacement de l'alimentation défectueuse et restauration depuis la dernière sauvegarde.";
-      this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Interruption du service d'expédition pendant 2 heures.";
-      this.incidentForm.commentaireEfficacite = this.incidentForm.commentaireEfficacite || "Atténuation réussie mais l'impact a été critique pendant la panne.";
-      this.incidentForm.changementDeclencheDescription = this.incidentForm.changementDeclencheDescription || "Déploiement du patch d'urgence 4.2.";
-      
-    } else if (title.includes('feu') || title.includes('incendie') || title.includes('physique')) {
-      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Une alarme incendie a été déclenchée dans le datacenter. L'accès physique a été temporairement restreint.";
-      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Surchauffe d'équipement ou alarme défectueuse.";
-      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "Les serveurs physiques sont sécurisés, pas de fuite.";
-      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "Coupure préventive de l'alimentation électrique du datacenter local.";
-      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "L'intégrité des disques doit être vérifiée après le redémarrage.";
-      this.eventForm.natureEvenement = "Degat_physique";
-      this.eventForm.detecteParSource = "Utilisateur";
-      this.eventForm.impactNiveau = "CRITIQUE";
-      
-      if (this.incidentForm && this.showIncidentForm()) {
-        this.incidentForm.preconisation = this.incidentForm.preconisation || "Révision complète du système d'extinction d'incendie et des capteurs thermiques.";
-        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Intervention des pompiers, nettoyage de la zone et remplacement des câbles fondus.";
-        this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Déclenchement du Plan de Continuité d'Activité (PCA) sur le site de secours.";
-      }
-    } else if (title.includes('mot de passe') || title.includes('accès')) {
-      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "Tentatives répétées d'accès non autorisé détectées sur le portail d'authentification.";
-      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Attaque par force brute ou erreur de frappe d'un utilisateur légitime.";
-      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "Risque potentiel si l'attaquant a réussi à deviner un mot de passe faible.";
-      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "Le compte utilisateur a été temporairement verrouillé (disponibilité réduite pour cet utilisateur).";
-      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "Aucune modification de données détectée.";
-      this.eventForm.natureEvenement = "Acces_illicite";
-      this.eventForm.detecteParSource = "Supervision";
-      this.eventForm.impactNiveau = "MINEUR";
-      
-      if (this.incidentForm && this.showIncidentForm()) {
-        this.incidentForm.preconisation = this.incidentForm.preconisation || "Forcer l'authentification multifacteur (MFA) pour tous les comptes externes.";
-        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Blocage de l'adresse IP source et réinitialisation du mot de passe compromis.";
-        this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || "Aucun impact majeur sur la continuité de l'entreprise.";
-      }
-    } else {
-      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || "L'événement s'est produit soudainement. L'analyse est en cours pour déterminer les détails exacts.";
-      this.eventForm.causesPossibles = this.eventForm.causesPossibles || "Instabilité du système ou erreur de configuration récente.";
-      this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || "En cours d'évaluation.";
-      this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || "En cours d'évaluation.";
-      this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || "En cours d'évaluation.";
-      this.eventForm.natureEvenement = "Autre";
-      this.eventForm.detecteParSource = "Helpdesk";
-      
-      if (this.incidentForm && this.showIncidentForm()) {
-        this.incidentForm.preconisation = this.incidentForm.preconisation || "Renforcer la supervision sur ce périmètre applicatif.";
-        this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || "Application des correctifs de base et redémarrage des services.";
-      }
+    const suggestions = this.buildAiSuggestions(title);
+
+    if (targetField) {
+      this.applyFieldSuggestion(formContext, targetField, suggestions);
+      this.successMsg.set('Suggestion ajoutée pour ce champ.');
+      return;
     }
 
-    // Extract time smartly if keywords like "hier à 15h", "aujourd'hui à 10h" are found
+    if (formContext === 'event' || this.showEventForm()) {
+      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || suggestions.descriptionDetaillee;
+      this.eventForm.causesPossibles = this.eventForm.causesPossibles || suggestions.causesPossibles;
+      this.eventForm.appreciation = this.eventForm.appreciation || suggestions.appreciation;
+      this.eventForm.evaluation = this.eventForm.evaluation || suggestions.evaluation;
+      this.eventForm.impact = this.eventForm.impact || suggestions.impact;
+      this.eventForm.natureEvenement = this.eventForm.natureEvenement || suggestions.natureEvenement;
+      this.eventForm.detecteParSource = this.eventForm.detecteParSource || suggestions.detecteParSource;
+      this.eventForm.impactNiveau = this.eventForm.impactNiveau || suggestions.impactNiveau;
+      this.applySmartDateFromTitle(title);
+    }
+
+    if (this.showIncidentForm()) {
+      this.incidentForm.preconisation = this.incidentForm.preconisation || suggestions.preconisation;
+      this.incidentForm.traitementAction = this.incidentForm.traitementAction || suggestions.traitementAction;
+      this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || suggestions.actionCorrective;
+      this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || suggestions.impactContinuiteDescription;
+      this.incidentForm.commentaireEfficacite = this.incidentForm.commentaireEfficacite || suggestions.commentaireEfficacite;
+      this.incidentForm.changementDeclencheDescription = this.incidentForm.changementDeclencheDescription || suggestions.changementDeclencheDescription;
+    }
+
+    this.successMsg.set('Suggestions IA ajoutées dans les champs vides.');
+  }
+
+  private buildAiSuggestions(title: string) {
+    if (title.includes('panne') || title.includes('serveur')) {
+      return {
+        descriptionDetaillee: 'Le serveur principal a cessé de répondre, entraînant une indisponibilité temporaire des services.',
+        causesPossibles: 'Coupure réseau, défaillance matérielle ou surcharge système.',
+        appreciation: 'Impact significatif sur la disponibilité des services métiers.',
+        evaluation: 'Priorité élevée : intervention immédiate requise.',
+        impact: 'Utilisateurs bloqués sur les applications concernées.',
+        natureEvenement: 'Indisponibilite',
+        detecteParSource: 'SUPERVISION',
+        impactNiveau: 'Majeur',
+        preconisation: 'Mettre en place une redondance serveur et un plan de bascule.',
+        traitementAction: 'Redémarrage contrôlé et vérification des logs système.',
+        actionCorrective: 'Remplacement du composant défectueux et renforcement de la supervision.',
+        impactContinuiteDescription: 'Interruption partielle des services pendant la panne.',
+        commentaireEfficacite: 'Mesures d\'atténuation appliquées, suivi post-incident nécessaire.',
+        changementDeclencheDescription: 'Déploiement d\'un correctif ou d\'un patch de sécurité.'
+      };
+    }
+    if (title.includes('feu') || title.includes('incendie') || title.includes('physique')) {
+      return {
+        descriptionDetaillee: 'Un incident physique a été signalé sur le site ou le datacenter.',
+        causesPossibles: 'Surchauffe, défaillance électrique ou incident environnemental.',
+        appreciation: 'Risque matériel et opérationnel important.',
+        evaluation: 'Situation critique nécessitant une escalade RSSI.',
+        impact: 'Accès physique restreint et services impactés.',
+        natureEvenement: 'Autre',
+        detecteParSource: 'UTILISATEUR',
+        impactNiveau: 'Majeur',
+        preconisation: 'Renforcer les contrôles environnementaux et le plan PCA.',
+        traitementAction: 'Isolation de la zone et sécurisation des équipements.',
+        actionCorrective: 'Inspection complète et remise en service progressive.',
+        impactContinuiteDescription: 'Activation possible du plan de continuité.',
+        commentaireEfficacite: 'Efficacité à valider après remise en service.',
+        changementDeclencheDescription: 'Mise à jour des procédures de sécurité physique.'
+      };
+    }
+    if (title.includes('mot de passe') || title.includes('accès') || title.includes('vpn')) {
+      return {
+        descriptionDetaillee: 'Des tentatives d\'accès suspectes ou un blocage d\'accès ont été constatés.',
+        causesPossibles: 'Tentative de connexion abusive, compte verrouillé ou erreur d\'authentification.',
+        appreciation: 'Risque modéré sur la sécurité des accès.',
+        evaluation: 'Analyse des journaux d\'authentification recommandée.',
+        impact: 'Accès limité pour un ou plusieurs utilisateurs.',
+        natureEvenement: 'Erreur applicative',
+        detecteParSource: 'HELP_DESK',
+        impactNiveau: 'Mineur',
+        preconisation: 'Renforcer l\'authentification et la politique de mots de passe.',
+        traitementAction: 'Réinitialisation des accès et blocage des IP suspectes.',
+        actionCorrective: 'Déploiement du MFA et revue des comptes sensibles.',
+        impactContinuiteDescription: 'Impact limité à un périmètre utilisateur restreint.',
+        commentaireEfficacite: 'Contrôles d\'accès rétablis après action corrective.',
+        changementDeclencheDescription: 'Durcissement des règles d\'accès distant.'
+      };
+    }
+    return {
+      descriptionDetaillee: 'Anomalie détectée nécessitant une analyse complémentaire.',
+      causesPossibles: 'Cause exacte en cours d\'investigation.',
+      appreciation: 'Impact à confirmer avec les équipes métiers.',
+      evaluation: 'Qualification RSSI requise après collecte des éléments.',
+      impact: 'Impact métier à préciser.',
+      natureEvenement: 'Autre',
+      detecteParSource: 'HELP_DESK',
+      impactNiveau: 'Mineur',
+      preconisation: 'Documenter l\'incident et renforcer la surveillance.',
+      traitementAction: 'Actions correctives à définir selon l\'analyse.',
+      actionCorrective: 'Suivi des mesures préventives adaptées.',
+      impactContinuiteDescription: 'Continuité à évaluer selon la durée de l\'incident.',
+      commentaireEfficacite: 'Efficacité des mesures à mesurer après clôture.',
+      changementDeclencheDescription: 'Changement éventuel à planifier après analyse.'
+    };
+  }
+
+  private applyFieldSuggestion(formContext: 'event' | 'incident', field: string, suggestions: ReturnType<typeof this.buildAiSuggestions>): void {
+    const suggestionMap: Record<string, string | undefined> = {
+      libelleErreur: this.eventForm.libelleErreur,
+      descriptionDetaillee: suggestions.descriptionDetaillee,
+      causesPossibles: suggestions.causesPossibles,
+      appreciation: suggestions.appreciation,
+      evaluation: suggestions.evaluation,
+      impact: suggestions.impact,
+      preconisation: suggestions.preconisation,
+      traitementAction: suggestions.traitementAction,
+      actionCorrective: suggestions.actionCorrective,
+      impactContinuiteDescription: suggestions.impactContinuiteDescription,
+      commentaireEfficacite: suggestions.commentaireEfficacite,
+      changementDeclencheDescription: suggestions.changementDeclencheDescription
+    };
+
+    const value = suggestionMap[field];
+    if (!value) return;
+
+    if (formContext === 'incident') {
+      if (!(this.incidentForm as any)[field]) {
+        (this.incidentForm as any)[field] = value;
+      }
+      return;
+    }
+
+    if (!(this.eventForm as any)[field]) {
+      (this.eventForm as any)[field] = value;
+    }
+  }
+
+  private applySmartDateFromTitle(title: string): void {
+    if (this.eventForm.dateHeureDetection) return;
     const now = new Date();
     if (title.includes('hier')) {
       now.setDate(now.getDate() - 1);
@@ -946,63 +1020,89 @@ export class DashboardComponent implements OnInit {
     if (hourMatch) {
       now.setHours(parseInt(hourMatch[1], 10), 0, 0, 0);
     }
-    
-    // Convert to native datetime-local format: YYYY-MM-DDThh:mm
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const hours = String(now.getHours()).padStart(2, '0');
     const mins = String(now.getMinutes()).padStart(2, '0');
     this.eventForm.dateHeureDetection = `${year}-${month}-${day}T${hours}:${mins}`;
-
-    this.successMsg.set('✨ Remplissage magique terminé avec succès !');
   }
 
   // --- Speech to Text ---
   isDictating: { [field: string]: boolean } = {};
+  private activeRecognition: any = null;
+  private activeDictationField: string | null = null;
 
-  startDictation(formContext: 'event' | 'incident', field: string): void {
+  startDictation(formContext: 'event' | 'incident', field: string, index?: number): void {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      this.errorMsg.set("Votre navigateur ne supporte pas la reconnaissance vocale.");
+      this.errorMsg.set('Votre navigateur ne supporte pas la reconnaissance vocale (utilisez Chrome ou Edge).');
       return;
     }
 
-    if (this.isDictating[field]) {
-      this.isDictating[field] = false;
+    const dictationKey = index !== undefined ? `${field}_${index}` : field;
+
+    if (this.activeDictationField === dictationKey && this.activeRecognition) {
+      this.activeRecognition.stop();
+      this.activeRecognition = null;
+      this.activeDictationField = null;
+      this.isDictating[dictationKey] = false;
       return;
+    }
+
+    if (this.activeRecognition) {
+      this.activeRecognition.stop();
     }
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
+    recognition.continuous = false;
 
-    this.isDictating[field] = true;
+    this.isDictating[dictationKey] = true;
+    this.activeRecognition = recognition;
+    this.activeDictationField = dictationKey;
 
     recognition.onresult = (event: any) => {
-      const speechResult = event.results[0][0].transcript;
-      const targetForm = formContext === 'event' ? this.eventForm : this.incidentForm;
-      
-      const currentVal = (targetForm as any)[field] || '';
-      (targetForm as any)[field] = currentVal ? `${currentVal} ${speechResult}` : speechResult;
-      
-      this.isDictating[field] = false;
+      const speechResult = event.results[0][0].transcript?.trim();
+      if (!speechResult) return;
+
+      if (formContext === 'incident' && field === 'risqueDescription' && index !== undefined) {
+        const current = this.incidentForm.risques[index]?.description || '';
+        this.incidentForm.risques[index].description = current ? `${current} ${speechResult}` : speechResult;
+      } else {
+        const targetForm = formContext === 'event' ? this.eventForm : this.incidentForm;
+        const currentVal = (targetForm as any)[field] || '';
+        (targetForm as any)[field] = currentVal ? `${currentVal} ${speechResult}` : speechResult;
+      }
+
+      this.successMsg.set('Texte dicté ajouté.');
       this.cdr.detectChanges();
     };
-    
-    recognition.onerror = () => {
-      this.isDictating[field] = false;
+
+    recognition.onerror = (event: any) => {
+      this.isDictating[dictationKey] = false;
+      this.activeRecognition = null;
+      this.activeDictationField = null;
+      this.errorMsg.set(`Erreur micro : ${event.error || 'inconnue'}`);
       this.cdr.detectChanges();
     };
 
     recognition.onend = () => {
-      this.isDictating[field] = false;
+      this.isDictating[dictationKey] = false;
+      this.activeRecognition = null;
+      this.activeDictationField = null;
       this.cdr.detectChanges();
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      this.isDictating[dictationKey] = false;
+      this.activeRecognition = null;
+      this.activeDictationField = null;
+      this.errorMsg.set('Impossible de démarrer le micro. Réessayez.');
+    }
   }
-
-
 }

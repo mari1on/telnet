@@ -37,6 +37,12 @@ public class AuthDTOs {
     }
 
     @Data
+    public static class ProfileUpdateRequest {
+        private String username;
+        private String email;
+    }
+
+    @Data
     public static class MessageResponse {
         private String message;
 

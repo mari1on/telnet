@@ -174,7 +174,7 @@ body {
 
 .stat-card {
   position: relative;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.4) 100%);
+  background: linear-gradient(135deg, rgba(171, 203, 241, 0.25) 0%, rgba(147, 197, 253, 0.12) 55%, rgba(255, 255, 255, 0.95) 100%);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -192,7 +192,7 @@ body {
   left: 0;
   width: 100%;
   height: 4px;
-  background: linear-gradient(90deg, #3b82f6, #93c5fd);
+  background: linear-gradient(90deg, #1b3f75, #60a5fa, #93c5fd);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -218,9 +218,8 @@ body {
   font-size: 2.75rem;
   font-weight: 900;
   margin-top: 0.75rem;
-  color: #0f172a;
   letter-spacing: -1px;
-  background: linear-gradient(to right, #0f172a, #334155);
+  background: linear-gradient(to right, #1b3f75, #60a5fa, #93c5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -269,8 +268,8 @@ body {
   opacity: 0.85;
 }
 
-.bar-primary { background: linear-gradient(to top, #2563eb, #3b82f6); }
-.bar-success { background: linear-gradient(to top, #3b82f6, #93c5fd); }
+.bar-primary { background: linear-gradient(to top, #1b3f75, #60a5fa); }
+.bar-success { background: linear-gradient(to top, #60a5fa, #93c5fd); }
 
 .bar-label {
   position: absolute;
@@ -336,17 +335,16 @@ table {
   border: none;
 }
 .table-premium th {
-  background: #80A5D5;
-  color: #ffffff;
+  background: #abcbf1;
+  color: #1b3f75;
   position: sticky;
   top: 0;
   z-index: 2;
-  border-bottom: 2px solid var(--border-color);
+  border-bottom: 2px solid #93c5fd;
   border-top: none;
   border-left: none;
   border-right: none;
   font-weight: 700;
-  color: #1e293b;
 }
 .table-premium td {
   border-bottom: 1px solid #f1f5f9;
@@ -367,11 +365,11 @@ th {
   padding: 1rem 1.5rem;
   font-weight: 600;
   font-size: 0.8rem;
-  color: #64748b;
+  color: #1b3f75;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background-color: #abcbf1;
+  border: 1px solid #93c5fd;
 }
 
 td {
@@ -841,8 +839,9 @@ label {
   transition: width 0.3s ease;
 }
 
-.bg-primary { background-color: #1b3f75 !important; }
-.bg-warning { background-color: #60a5fa !important; }
+.bg-primary { background: linear-gradient(90deg, #1b3f75, #60a5fa) !important; }
+.bg-success { background: linear-gradient(90deg, #60a5fa, #93c5fd) !important; }
+.bg-warning { background: linear-gradient(90deg, #93c5fd, #abcbf1) !important; }
 .bg-danger { background-color: #ef4444 !important; }
 @keyframes pulse-red {
   0% { color: inherit; transform: scale(1); }

@@ -16,6 +16,7 @@ public class EvenementService {
     private final EvenementRepository evenementRepository;
     private final IncidentRepository incidentRepository;
     private final AuditLogService auditLogService;
+    private final EmailService emailService;
 
     public List<Evenement> getAllEvenements(String username, boolean isRssi) {
         if (isRssi) {
@@ -35,6 +36,7 @@ public class EvenementService {
         evenement.setDeclarePar(username);
         Evenement saved = evenementRepository.save(evenement);
         auditLogService.logAction(username, "Création Événement N° " + saved.getId() + " '" + saved.getLibelleErreur() + "'");
+        emailService.notifyRssiNewEvent(saved);
         return saved;
     }
 

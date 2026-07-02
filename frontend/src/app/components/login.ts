@@ -18,11 +18,11 @@ import { ApiService } from '../api.service';
       <div class="auth-card panel">
         
         <div class="logo-area">
-          <img src="assets/logo.png" alt="TELNET Logo" style="height: 60px;">
+          <img src="assets/logo.png" alt="TELNET Logo" class="auth-logo">
         </div>
 
         <div class="card-header" style="text-align: center;">
-          <h1 class="card-title">{{ isLoginMode() ? 'Se connecter' : 'S\\'inscrire' }}</h1>
+          <h1 class="auth-card-title">{{ isLoginMode() ? 'se connecter' : 's\'inscrire' }}</h1>
           <p class="card-subtitle">
             {{ isLoginMode() ? 'Accédez à votre espace sécurisé en quelques instants' : 'Rejoignez notre plateforme technologique en quelques étapes' }}
           </p>
@@ -280,6 +280,13 @@ import { ApiService } from '../api.service';
       margin-bottom: 2rem;
     }
 
+    .auth-logo {
+      height: 130px;
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+    }
+
     .logo-text {
       font-size: 2.5rem;
       font-weight: 800;
@@ -295,10 +302,20 @@ import { ApiService } from '../api.service';
       margin-bottom: 2rem;
     }
 
+    .auth-card-title {
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: #64748b !important;
+      text-transform: none !important;
+      letter-spacing: 0;
+      margin: 0;
+    }
+
     .card-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #93c5fd;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: none;
       margin: 0;
     }
 
@@ -399,23 +416,24 @@ import { ApiService } from '../api.service';
 
     /* Primary Button */
     .submit-btn {
-      background: #ffffff;
-      color: #93c5fd;
+      background: #93c5fd;
+      color: #64748b;
       padding: 0.85rem;
-      font-size: 1.05rem;
-      font-weight: 700;
-      border: 2px solid #93c5fd;
+      font-size: 1rem;
+      font-weight: 500;
+      text-transform: none;
+      border: none;
       border-radius: 50px;
       width: 100%;
       cursor: pointer;
       transition: all 0.2s;
       margin-bottom: 1.5rem;
-      box-shadow: 0 4px 10px rgba(147, 197, 253, 0.25);
+      box-shadow: 0 4px 10px rgba(147, 197, 253, 0.35);
     }
 
     .submit-btn:hover:not(:disabled) {
-      background: #93c5fd;
-      color: #ffffff;
+      background: #7eb6fc;
+      color: #64748b;
       transform: translateY(-1px);
     }
 

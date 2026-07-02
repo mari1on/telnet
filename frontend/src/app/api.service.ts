@@ -75,8 +75,11 @@ export class ApiService {
     this.currentUser.set(null);
   }
 
-  updateUserProfile(id: number, profile: { username: string; email: string; role: string }): Observable<User> {
-    return this.http.put<User>(`${this.baseUrl}/users/${id}`, profile, { headers: this.getHeaders() }).pipe(
+  updateUserProfile(_id: number, profile: { username: string; email: string; role: string }): Observable<User> {
+    return this.http.put<any>(`${this.baseUrl}/auth/profile`, {
+      username: profile.username,
+      email: profile.email
+    }, { headers: this.getHeaders() }).pipe(
       tap(updated => {
         const user = this.currentUser();
         if (!user) return;
@@ -84,7 +87,7 @@ export class ApiService {
           ...user,
           username: updated.username,
           email: updated.email,
-          role: updated.role
+          role: updated.role ?? user.role
         };
         localStorage.setItem('telnet_user', JSON.stringify(updatedUser));
         this.currentUser.set(updatedUser);

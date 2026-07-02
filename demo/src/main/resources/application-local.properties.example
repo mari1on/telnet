@@ -1,0 +1,2 @@
+# Copiez ce fichier en application-local.properties et renseignez le mot de passe d'application Gmail.
+spring.mail.password=VOTRE_MOT_DE_PASSE_APPLICATION

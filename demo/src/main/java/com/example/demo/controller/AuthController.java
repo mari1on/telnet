@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -74,5 +75,42 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.ok(new MessageResponse("Utilisateur enregistré avec succès !"));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody ProfileUpdateRequest request, Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User user = userRepository.findById(userDetails.getId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String username = request.getUsername() != null ? request.getUsername().trim() : user.getUsername();
+        String email = request.getEmail() != null ? request.getEmail().trim() : user.getEmail();
+
+        if (username.isBlank()) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Le nom d'utilisateur ne peut pas être vide."));
+        }
+
+        if (userRepository.findByUsername(username).filter(existing -> !existing.getId().equals(user.getId())).isPresent()) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Ce nom d'utilisateur est déjà utilisé."));
+        }
+
+        if (userRepository.findByEmail(email).filter(existing -> !existing.getId().equals(user.getId())).isPresent()) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Cet email est déjà utilisé."));
+        }
+
+        user.setUsername(username);
+        user.setEmail(email);
+        try {
+            User saved = userRepository.save(user);
+            return ResponseEntity.ok(new JwtResponse(null,
+                    saved.getId(),
+                    saved.getUsername(),
+                    saved.getEmail(),
+                    saved.getRole()));
+        } catch (DataIntegrityViolationException ex) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Impossible de mettre à jour le profil : identifiant ou email déjà utilisé."));
+        }
     }
 }

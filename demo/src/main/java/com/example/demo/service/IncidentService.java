@@ -26,8 +26,12 @@ public class IncidentService {
 
     public Incident createIncident(Incident incident, String username) {
         if (incident.getEvenement() != null && incident.getEvenement().getId() != null) {
-            evenementRepository.findById(incident.getEvenement().getId())
-                .ifPresent(incident::setEvenement);
+            Long eventId = incident.getEvenement().getId();
+            var existingIncidents = incidentRepository.findByEvenementId(eventId);
+            if (!existingIncidents.isEmpty()) {
+                return existingIncidents.get(0);
+            }
+            evenementRepository.findById(eventId).ifPresent(incident::setEvenement);
         }
         if (incident.getRisques() != null) {
             incident.getRisques().forEach(r -> r.setIncident(incident));
