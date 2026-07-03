@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService } from '../api.service';
 
 @Component({
@@ -22,10 +23,13 @@ import { ApiService } from '../api.service';
         </div>
 
         <div class="card-header" style="text-align: center;">
-          <h1 class="auth-card-title">{{ isLoginMode() ? 'se connecter' : 's\'inscrire' }}</h1>
-          <p class="card-subtitle">
-            {{ isLoginMode() ? 'Accédez à votre espace sécurisé en quelques instants' : 'Rejoignez notre plateforme technologique en quelques étapes' }}
-          </p>
+          @if (isLoginMode()) {
+            <h1 class="auth-card-title">Se connecter</h1>
+            <p class="card-subtitle">Accédez à votre espace sécurisé en quelques instants</p>
+          } @else {
+            <h1 class="auth-card-title">S'inscrire</h1>
+            <p class="card-subtitle">Rejoignez notre plateforme technologique en quelques étapes</p>
+          }
         </div>
 
         @if (errorMsg()) {
@@ -532,7 +536,7 @@ export class LoginComponent {
   
   validationErrors: any = {};
 
-  constructor(private apiService: ApiService) {}
+  constructor(private apiService: ApiService, private router: Router) {}
 
   setMode(isLogin: boolean, event?: Event): void {
     if (event) event.preventDefault();
@@ -580,6 +584,7 @@ export class LoginComponent {
     this.apiService.login(this.loginData).subscribe({
       next: () => {
         this.loading.set(false);
+        this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.loading.set(false);

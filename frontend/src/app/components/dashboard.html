@@ -243,11 +243,11 @@
                 </td>
                 
                 <td>
-                  <span class="badge" [class.badge-danger]="event.impactConfidentialite === 'Majeur' || event.impactConfidentialite === 'Critique'" [class.badge-success]="event.impactConfidentialite === 'Mineur/Aucun'">{{ event.impactConfidentialite || '-' }}</span>
+                  <span class="badge" [class.badge-danger]="event.impactConfidentialite === 'Majeur' || event.impactConfidentialite === 'Critique'" [class.badge-success]="event.impactConfidentialite === 'Aucun'">{{ event.impactConfidentialite || '-' }}</span>
                   <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireConfidentialite">{{ event.commentaireConfidentialite || '' }}</div>
                 </td>
                 <td>
-                  <span class="badge" [class.badge-danger]="event.impactIntegrite === 'Majeur' || event.impactIntegrite === 'Critique'" [class.badge-success]="event.impactIntegrite === 'Mineur/Aucun'">{{ event.impactIntegrite || '-' }}</span>
+                  <span class="badge" [class.badge-danger]="event.impactIntegrite === 'Majeur' || event.impactIntegrite === 'Critique'" [class.badge-success]="event.impactIntegrite === 'Aucun'">{{ event.impactIntegrite || '-' }}</span>
                   <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireIntegrite">{{ event.commentaireIntegrite || '' }}</div>
                 </td>
                 
@@ -270,10 +270,10 @@
                       <button class="btn btn-primary btn-icon btn-qualify" (click)="openQualify(event)" [title]="event.qualification === 'NON_QUALIFIE' ? 'Qualifier' : 'Modifier la qualification'">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                       </button>
-                      <button class="btn btn-danger btn-icon" (click)="deleteEvent(event.id!)" title="Supprimer">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                      </button>
                     }
+                    <button class="btn btn-danger btn-icon" (click)="deleteEvent(event.id!)" title="Supprimer">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -506,88 +506,6 @@
               </select>
             </div>
           </div>
-
-          <div class="form-section-divider">
-            <h4 class="section-title">2. Appréciation et Évaluation</h4>
-          </div>
-          <div class="form-grid">
-            <div class="form-group col-span-2">
-              <label for="appreciation" style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Appréciation de l'événement</span>
-                <div style="display:flex; gap:0.5rem;">
-                  <button type="button" class="btn-icon" (click)="magicFill('appreciation', 'event')" title="Générer avec l'IA ✨">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
-                  </button>
-                  <button type="button" class="btn-icon" [class.mic-recording]="isDictating['appreciation']" (click)="startDictation('event', 'appreciation')" title="Dicter avec la voix">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c-1.7 0-3 1.2-3 2.8v7.4c0 1.6 1.3 2.8 3 2.8s3-1.2 3-2.8V4.8C15 3.2 13.7 2 12 2z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                  </button>
-                </div>
-              </label>
-              <textarea id="appreciation" name="appreciation" class="form-control" rows="2" [(ngModel)]="eventForm.appreciation" placeholder="Appréciation globale de l'événement"></textarea>
-            </div>
-            <div class="form-group col-span-2">
-              <label for="evaluation" style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Évaluation de l'événement</span>
-                <div style="display:flex; gap:0.5rem;">
-                  <button type="button" class="btn-icon" (click)="magicFill('evaluation', 'event')" title="Générer avec l'IA ✨">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
-                  </button>
-                  <button type="button" class="btn-icon" [class.mic-recording]="isDictating['evaluation']" (click)="startDictation('event', 'evaluation')" title="Dicter avec la voix">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c-1.7 0-3 1.2-3 2.8v7.4c0 1.6 1.3 2.8 3 2.8s3-1.2 3-2.8V4.8C15 3.2 13.7 2 12 2z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                  </button>
-                </div>
-              </label>
-              <textarea id="evaluation" name="evaluation" class="form-control" rows="2" [(ngModel)]="eventForm.evaluation" placeholder="Évaluation détaillée de l'événement"></textarea>
-            </div>
-          </div>
-
-          <div class="form-section-divider">
-            <h4 class="section-title">3. Évaluation de l'Impact</h4>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="impactNiveau">Impact Global *</label>
-              <select id="impactNiveau" name="impactNiveau" class="form-control" [(ngModel)]="eventForm.impactNiveau" required>
-                @for (level of eventImpactLevels; track level) { <option [value]="level">{{ level }}</option> }
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="impactConfidentialiteForm">Impact Confidentialité</label>
-              <select id="impactConfidentialiteForm" name="impactConfidentialiteForm" class="form-control" [(ngModel)]="eventForm.impactConfidentialite">
-                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="commentaireConfidentialite">Commentaire Confidentialité</label>
-              <textarea id="commentaireConfidentialite" name="commentaireConfidentialite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireConfidentialite"></textarea>
-            </div>
-
-            <div class="form-group">
-              <label for="impactIntegriteForm">Impact Intégrité</label>
-              <select id="impactIntegriteForm" name="impactIntegriteForm" class="form-control" [(ngModel)]="eventForm.impactIntegrite">
-                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="commentaireIntegrite">Commentaire Intégrité</label>
-              <textarea id="commentaireIntegrite" name="commentaireIntegrite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireIntegrite"></textarea>
-            </div>
-
-            <div class="form-group">
-              <label for="impactDisponibiliteForm">Impact Disponibilité</label>
-              <select id="impactDisponibiliteForm" name="impactDisponibiliteForm" class="form-control" [(ngModel)]="eventForm.impactDisponibilite">
-                @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="commentaireDisponibilite">Commentaire Disponibilité</label>
-              <textarea id="commentaireDisponibilite" name="commentaireDisponibilite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireDisponibilite"></textarea>
-            </div>
-            <div class="form-group col-span-2">
-              <label for="impact">Description de l'impact</label>
-              <textarea id="impact" name="impact" class="form-control" rows="2" [(ngModel)]="eventForm.impact" placeholder="Ex: Perte de connexion, impact sur l'intégrité"></textarea>
-            </div>
-          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="showEventForm.set(false)">Annuler</button>
@@ -611,6 +529,14 @@
           
           <div class="form-grid">
             
+            <div class="form-group">
+              <label for="typeActif">Type d'actif</label>
+              <input id="typeActif" name="typeActif" class="form-control" [(ngModel)]="eventForm.typeActif" placeholder="Ex: Serveur, Base de données, Application" />
+            </div>
+            <div class="form-group">
+              <label for="actifAffecte">Actif affecté</label>
+              <input id="actifAffecte" name="actifAffecte" class="form-control" [(ngModel)]="eventForm.actifAffecte" placeholder="Ex: Frontend, VPN, Serveur DB" />
+            </div>
             <div class="form-group">
               <label for="impactConfidentialite">Impact Confidentialité</label>
               <select id="impactConfidentialite" name="impactConfidentialite" class="form-control" [(ngModel)]="eventForm.impactConfidentialite" (ngModelChange)="onQualificationChange()">

@@ -1,15 +1,12 @@
-import { Component, inject } from '@angular/core';
-import { ApiService } from './api.service';
-import { LoginComponent } from './components/login';
-import { DashboardComponent } from './components/dashboard';
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [LoginComponent, DashboardComponent],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
-  protected readonly apiService = inject(ApiService);
 }

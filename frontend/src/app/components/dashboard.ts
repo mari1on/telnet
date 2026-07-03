@@ -1,6 +1,7 @@
 import { Component, OnInit, signal, computed, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService, User } from '../api.service';
 
 interface Evenement {
@@ -127,8 +128,8 @@ export class DashboardComponent implements OnInit {
   sources = ['HELP_DESK', 'SIEM', 'UTILISATEUR', 'SUPERVISION', 'AUTRE'];
   eventNatures = ['Indisponibilite', 'Degradation', 'Erreur applicative', 'Alerte securite', 'Suspicion de fraude', 'Autre'];
   etatsEvent = ['Ouvert', 'En cours', 'Clos'];
-  eventImpactLevels = ['Mineur', 'Majeur'];
-  impactOptions = ['Mineur/Aucun', 'Majeur', 'Critique'];
+  eventImpactLevels = ['Aucun', 'Mineur', 'Majeur', 'Critique'];
+  impactOptions = ['Aucun', 'Mineur', 'Majeur', 'Critique'];
   etatsMesure = ['En cours', 'Terminé', 'En attente'];
   etatsTraitement = ['En cours', 'Clôturé', 'Suspendu'];
   yesNoOptions = [
@@ -181,7 +182,7 @@ export class DashboardComponent implements OnInit {
     role: ''
   };
 
-  constructor(protected apiService: ApiService, private cdr: ChangeDetectorRef) {}
+  constructor(protected apiService: ApiService, private cdr: ChangeDetectorRef, private router: Router) {}
 
   ngOnInit(): void {
     this.activeTab.set(this.apiService.isRssi() ? 'stats' : 'events');
@@ -208,17 +209,17 @@ export class DashboardComponent implements OnInit {
       appreciation: '',
       evaluation: '',
       impact: '',
-      impactNiveau: 'Mineur',
+      impactNiveau: 'Aucun',
       impactMineur: false,
       impactCommentaire: '',
       typeActif: '',
       actifAffecte: '',
       qualification: 'NON_QUALIFIE',
-      impactConfidentialite: 'Mineur/Aucun',
+      impactConfidentialite: 'Aucun',
       commentaireConfidentialite: '',
-      impactIntegrite: 'Mineur/Aucun',
+      impactIntegrite: 'Aucun',
       commentaireIntegrite: '',
-      impactDisponibilite: 'Mineur/Aucun',
+      impactDisponibilite: 'Aucun',
       commentaireDisponibilite: ''
     };
   }
@@ -555,7 +556,7 @@ export class DashboardComponent implements OnInit {
     }
     this.eventForm.natureEvenement = this.eventForm.natureEvenement || 'Indisponibilite';
     this.eventForm.etat = this.eventForm.etat || 'OPEN';
-    this.eventForm.impactNiveau = this.eventForm.impactNiveau || (this.eventForm.impactMineur ? 'MINEUR' : 'MAJEUR');
+    this.eventForm.impactNiveau = this.eventForm.impactNiveau || 'Aucun';
     this.showEventForm.set(true);
   }
 
@@ -568,11 +569,7 @@ export class DashboardComponent implements OnInit {
       this.errorMsg.set('La nature et l etat de l evenement sont obligatoires.');
       return;
     }
-    if (!this.isFilled(this.eventForm.impactNiveau)) {
-      this.errorMsg.set('Le niveau d impact de l evenement est obligatoire.');
-      return;
-    }
-    this.eventForm.impactMineur = this.eventForm.impactNiveau === 'MINEUR';
+    this.eventForm.impactMineur = this.eventForm.impactNiveau === 'Mineur';
 
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
@@ -614,12 +611,12 @@ export class DashboardComponent implements OnInit {
     this.selectedEvent.set(event);
     this.eventForm = { ...event };
 
-    this.eventForm.impactConfidentialite = this.eventForm.impactConfidentialite || 'Mineur/Aucun';
-    this.eventForm.impactIntegrite = this.eventForm.impactIntegrite || 'Mineur/Aucun';
-    this.eventForm.impactDisponibilite = this.eventForm.impactDisponibilite || 'Mineur/Aucun';
-    this.eventForm.commentaireConfidentialite = '';
-    this.eventForm.commentaireIntegrite = '';
-    this.eventForm.commentaireDisponibilite = '';
+    this.eventForm.impactConfidentialite = this.eventForm.impactConfidentialite || 'Aucun';
+    this.eventForm.impactIntegrite = this.eventForm.impactIntegrite || 'Aucun';
+    this.eventForm.impactDisponibilite = this.eventForm.impactDisponibilite || 'Aucun';
+    this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || '';
+    this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || '';
+    this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || '';
 
     this.onQualificationChange();
     this.showQualifyForm.set(true);
@@ -859,6 +856,7 @@ export class DashboardComponent implements OnInit {
 
   logout(): void {
     this.apiService.logout();
+    this.router.navigate(['/login']);
   }
 
   // --- AI Smart Fill (context-aware) ---

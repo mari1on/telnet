@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
 import com.example.demo.entity.Evenement;
+import com.example.demo.entity.User;
+import com.example.demo.repository.UserRepository;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,27 +18,41 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final UserRepository userRepository;
 
     @Value("${app.mail.from}")
     private String fromEmail;
 
     @Value("${app.mail.rssi}")
-    private String rssiEmail;
+    private String defaultRssiEmail;
 
     @Async
     public void notifyRssiNewEvent(Evenement event) {
+        String recipient = resolveRssiEmail();
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
             helper.setFrom(fromEmail);
-            helper.setTo(rssiEmail);
+            helper.setTo(recipient);
             helper.setSubject("[TELNET] Nouveau signalement #EV-" + event.getId());
             helper.setText(buildNewEventBody(event), false);
             mailSender.send(mimeMessage);
-            log.info("Notification RSSI envoyée à {} pour l'événement #{}", rssiEmail, event.getId());
+            log.info("Notification RSSI envoyée à {} pour l'événement #{}", recipient, event.getId());
         } catch (Exception ex) {
             log.error("Échec d'envoi de la notification RSSI pour l'événement #{} : {}", event.getId(), ex.getMessage(), ex);
         }
+    }
+
+    private static final String FIXED_RSSI_EMAIL = "mariem.elloumi111@gmail.com";
+
+    private String resolveRssiEmail() {
+        if (defaultRssiEmail != null && !defaultRssiEmail.isBlank() && !defaultRssiEmail.equalsIgnoreCase("telnettunisie@gmail.com")) {
+            log.info("RSSI email utilisé depuis la configuration : {}", defaultRssiEmail);
+            return defaultRssiEmail;
+        }
+
+        log.warn("RSSI email forcé vers {} car la configuration est vide ou incorrecte", FIXED_RSSI_EMAIL);
+        return FIXED_RSSI_EMAIL;
     }
 
     private String buildNewEventBody(Evenement event) {
