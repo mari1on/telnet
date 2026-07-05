@@ -37,6 +37,8 @@ public class Incident {
     private LocalDate mesureDDT; // Date Début Traitement/Atténuation
     private String dureeAttenuation; // durée d'atténuation de l'incident
     private String heureAttenuation; // heure d'atténuation
+    private LocalDate mesureDateCloture;
+    private LocalTime mesureHeureCloture;
 
     // Action de traitement
     private String traitementAction;
@@ -71,7 +73,10 @@ public class Incident {
 
     private Boolean capitalisation;
 
-    private Boolean evenementsSimilaires;
+    private String evenementsSimilaires;
+    
+    @Column(columnDefinition = "TEXT")
+    private String evenementsDetailsDescription;
 
     private Boolean changementDeclenche;
 

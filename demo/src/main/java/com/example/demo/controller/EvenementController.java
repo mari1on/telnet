@@ -9,6 +9,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/evenements")
@@ -61,6 +62,16 @@ public class EvenementController {
         return evenementService.updateEvenement(id, details, getUsername())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/notify-rssi")
+    public ResponseEntity<?> notifyRssi(@PathVariable Long id) {
+        try {
+            Evenement updated = evenementService.sendToRssi(id, getUsername(), isRssi());
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @DeleteMapping("/{id}")

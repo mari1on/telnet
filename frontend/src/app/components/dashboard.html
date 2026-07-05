@@ -224,6 +224,7 @@
               <th>Confidentialité</th>
               <th>Intégrité</th>
               <th>Qualification</th>
+              <th>RSSI</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -260,9 +261,27 @@
                     {{ event.qualification === 'INCIDENT' ? 'Incident' : (event.qualification === 'NON_INCIDENT' ? 'Classé sans suite' : 'En attente') }}
                   </span>
                 </td>
+
+                <td>
+                  @if (event.envoyeAuRssi) {
+                    <span class="badge badge-success">Envoyé</span>
+                  } @else {
+                    <span class="badge badge-secondary">Non envoyé</span>
+                  }
+                </td>
                 
                 <td style="position: sticky; right: 0; background: white; z-index: 1;">
                   <div class="action-buttons">
+                    @if (!apiService.isRssi()) {
+                      <button
+                        class="btn btn-primary btn-icon btn-send-rssi"
+                        (click)="sendEventToRssi(event)"
+                        [disabled]="event.envoyeAuRssi || !canSendEventToRssi(event) || isSendingToRssi()"
+                        [title]="event.envoyeAuRssi ? 'Déjà envoyé au RSSI' : (canSendEventToRssi(event) ? 'Envoyer au RSSI' : 'Complétez tous les champs du formulaire')"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                      </button>
+                    }
                     <button class="btn btn-secondary btn-icon" (click)="openEditEvent(event)" title="Consulter / Modifier">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     </button>
@@ -279,7 +298,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="16" class="text-center text-muted empty-state">
+                <td colspan="9" class="text-center text-muted empty-state">
                   <div class="empty-icon-wrapper">
                     <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="50" cy="50" r="40" stroke="#1b3f75" stroke-width="4"/>
@@ -311,7 +330,7 @@
       </div>
 
       <div class="table-container">
-        <table>
+        <table class="table-premium">
           <thead>
             <tr>
               <th>ID ÉVÉNEMENT</th>
@@ -389,7 +408,7 @@
       </div>
 
       <div class="table-container">
-        <table>
+        <table class="table-premium">
           <thead>
             <tr>
               <th style="width: 200px;">HORODATAGE</th>
@@ -446,7 +465,7 @@
 
             <div class="form-group col-span-2">
               <label for="descriptionDetaillee" style="display:flex; justify-content:space-between;">
-                <span>Description détaillée</span>
+                <span>Description détaillée *</span>
                 <div style="display:flex; gap:0.5rem;">
                   <button type="button" class="btn-icon" (click)="magicFill('descriptionDetaillee', 'event')" title="Générer automatiquement avec l'IA ✨">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
@@ -456,7 +475,7 @@
                   </button>
                 </div>
               </label>
-              <textarea id="descriptionDetaillee" name="descriptionDetaillee" class="form-control" rows="3" [(ngModel)]="eventForm.descriptionDetaillee" placeholder="Que s'est-il passé exactement ?"></textarea>
+              <textarea id="descriptionDetaillee" name="descriptionDetaillee" class="form-control" rows="3" [(ngModel)]="eventForm.descriptionDetaillee" required placeholder="Que s'est-il passé exactement ?"></textarea>
             </div>
 
             <div class="form-group">
@@ -483,12 +502,12 @@
 
             <div class="form-group col-span-2">
               <label for="causesPossibles" style="display:flex; justify-content:space-between; align-items:center;">
-                Causes possibles de l'événement
+                Causes possibles de l'événement *
                 <button type="button" class="btn-icon" (click)="startDictation('event', 'causesPossibles')" [class.text-danger]="isDictating['causesPossibles']" title="Dicter avec la voix">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 </button>
               </label>
-              <textarea id="causesPossibles" name="causesPossibles" class="form-control" rows="2" [(ngModel)]="eventForm.causesPossibles" placeholder="Ex: panne réseau, erreur de configuration..."></textarea>
+              <textarea id="causesPossibles" name="causesPossibles" class="form-control" rows="2" [(ngModel)]="eventForm.causesPossibles" required placeholder="Ex: panne réseau, erreur de configuration..."></textarea>
             </div>
 
             <div class="form-group">
@@ -506,10 +525,33 @@
               </select>
             </div>
           </div>
+          @if (!apiService.isRssi()) {
+            <div class="rssi-send-hint">
+              @if (selectedEvent()?.envoyeAuRssi || eventForm.envoyeAuRssi) {
+                <span class="badge badge-success">✓ Déjà envoyé au RSSI</span>
+              } @else if (!isEventFormComplete()) {
+                Remplissez tous les champs obligatoires, puis cliquez sur « Envoyer au RSSI » pour notifier le RSSI par e-mail.
+              } @else {
+                Formulaire complet. Enregistrez puis cliquez sur « Envoyer au RSSI » pour envoyer la notification.
+              }
+            </div>
+          }
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="showEventForm.set(false)">Annuler</button>
-          <button type="submit" class="btn btn-primary" style="background: #1b3f75; color: white;">Confirmer</button>
+          <button type="submit" class="btn btn-primary" style="background: #1b3f75; color: white;" [disabled]="isSubmitting()">
+            {{ isSubmitting() ? 'Enregistrement...' : 'Enregistrer' }}
+          </button>
+          @if (!apiService.isRssi()) {
+            <button
+              type="button"
+              class="btn btn-primary btn-send-rssi"
+              (click)="sendEventToRssi()"
+              [disabled]="!canSendEventToRssi() || isSendingToRssi() || eventForm.envoyeAuRssi || selectedEvent()?.envoyeAuRssi"
+            >
+              {{ isSendingToRssi() ? 'Envoi en cours...' : 'Envoyer au RSSI' }}
+            </button>
+          }
         </div>
       </form>
     </div>
@@ -526,6 +568,9 @@
       </div>
       <form (ngSubmit)="submitQualification()">
         <div class="modal-body">
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin-bottom: 1rem; border-radius: 4px; color: #92400e;">
+            <strong>⚠️ Important:</strong> Vous devez remplir les trois impacts (Confidentialité, Intégrité, Disponibilité) pour pouvoir qualifier l'événement.
+          </div>
           
           <div class="form-grid">
             
@@ -613,8 +658,7 @@
       </div>
       <form (ngSubmit)="saveIncident()">
         <div class="modal-body">
-          <!-- Incident sections logic remains the same but with the new clean styling -->
-          <!-- Section A: Types d'Incident -->
+          <!-- 1. Catégorisation de l'incident -->
           <div class="form-section">
             <h4 class="section-title">1. Catégorisation de l'incident</h4>
             <div class="checkbox-grid">
@@ -627,13 +671,13 @@
             </div>
           </div>
 
-          <!-- Section B: Atténuation -->
+          <!-- 2. Mesures prises pour atténuer l'incident -->
           <div class="form-section-divider">
-            <h4 class="section-title">2. Mesures Conservatoires (Immédiates)</h4>
+            <h4 class="section-title">2. Mesures prises pour atténuer l'incident</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <label for="mesureAction">Qu'a-t-on fait pour stopper l'hémorragie ?</label>
+              <label for="mesureAction">Action</label>
               <input type="text" id="mesureAction" name="mesureAction" class="form-control" [(ngModel)]="incidentForm.mesureAction" placeholder="Ex: Isolation réseau, changement de mot de passe..." />
             </div>
             <div class="form-group">
@@ -641,37 +685,47 @@
               <input type="text" id="mesureResponsable" name="mesureResponsable" class="form-control" [(ngModel)]="incidentForm.mesureResponsable" />
             </div>
             <div class="form-group">
-              <label for="mesureEtat">État de l'atténuation</label>
+              <label for="mesureDelai">Délai</label>
+              <input type="text" id="mesureDelai" name="mesureDelai" class="form-control" [(ngModel)]="incidentForm.mesureDelai" placeholder="Ex: Immédiat, 2h, 1j..." />
+            </div>
+            <div class="form-group">
+              <label for="mesureEtat">État</label>
               <select id="mesureEtat" name="mesureEtat" class="form-control" [(ngModel)]="incidentForm.mesureEtat">
-                @for (m of etatsMesure; track m) { <option [value]="m">{{ m }}</option> }
+                <option value="Ouvert">Ouvert</option>
+                <option value="En cours">En cours</option>
+                <option value="Clôturé">Clôturé</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="mesureDDT">Date début atténuation</label>
+              <label for="mesureDDT">Date début (DDT)</label>
               <input type="date" id="mesureDDT" name="mesureDDT" class="form-control" [(ngModel)]="incidentForm.mesureDDT" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
             <div class="form-group">
-              <label for="heureAttenuation">Heure d'atténuation (auto)</label>
+              <label for="heureAttenuation">Heure début (HDT)</label>
               <input type="time" id="heureAttenuation" name="heureAttenuation" class="form-control" [(ngModel)]="incidentForm.heureAttenuation" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
             <div class="form-group">
-              <label for="dureeAttenuation">Durée d'atténuation (auto, modifiable)</label>
-              <input type="text" id="dureeAttenuation" name="dureeAttenuation" class="form-control" [(ngModel)]="incidentForm.dureeAttenuation" placeholder="Calcul automatique" />
+              <label for="mesureDateCloture">Date clôture</label>
+              <input type="date" id="mesureDateCloture" name="mesureDateCloture" class="form-control" [(ngModel)]="incidentForm.mesureDateCloture" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
             <div class="form-group">
-              <label for="dureeIndisponibilite">Durée d'indisponibilité totale</label>
-              <input type="text" id="dureeIndisponibilite" name="dureeIndisponibilite" class="form-control" [(ngModel)]="incidentForm.dureeIndisponibilite" placeholder="Ex: 2h 30m" />
+              <label for="mesureHeureCloture">Heure clôture</label>
+              <input type="time" id="mesureHeureCloture" name="mesureHeureCloture" class="form-control" [(ngModel)]="incidentForm.mesureHeureCloture" (ngModelChange)="onAttenuationTimeChange()" />
+            </div>
+            <div class="form-group col-span-2">
+              <label for="dureeAttenuation">Durée d'atténuation</label>
+              <input type="text" id="dureeAttenuation" name="dureeAttenuation" class="form-control" [(ngModel)]="incidentForm.dureeAttenuation" placeholder="Auto-calculé ou modifiable" />
             </div>
           </div>
 
-          <!-- Section C: Traitement -->
+          <!-- 3. Action de traitement -->
           <div class="form-section-divider">
-            <h4 class="section-title">3. Traitement Curatif (À long terme)</h4>
+            <h4 class="section-title">3. Action de traitement (Curatif)</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
               <label for="traitementAction" style="display:flex; justify-content:space-between; align-items:center;">
-                Action corrective détaillée
+                <span>Action</span>
                 <button type="button" class="btn-icon" (click)="startDictation('incident', 'traitementAction')" [class.text-danger]="isDictating['traitementAction']" title="Dicter avec la voix">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 </button>
@@ -679,22 +733,24 @@
               <textarea id="traitementAction" name="traitementAction" class="form-control" rows="2" [(ngModel)]="incidentForm.traitementAction" placeholder="Ex: Patch de sécurité, mise à jour pare-feu..."></textarea>
             </div>
             <div class="form-group">
-              <label for="traitementResponsable">Responsable</label>
-              <input type="text" id="traitementResponsable" name="traitementResponsable" class="form-control" [(ngModel)]="incidentForm.traitementResponsable" />
-            </div>
-            <div class="form-group">
-              <label for="traitementEtat">Statut du dossier</label>
-              <select id="traitementEtat" name="traitementEtat" class="form-control" [(ngModel)]="incidentForm.traitementEtat">
-                @for (t of etatsTraitement; track t) { <option [value]="t">{{ t }}</option> }
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="traitementDDT">Date début traitement</label>
+              <label for="traitementDDT">Date début (DDT)</label>
               <input type="date" id="traitementDDT" name="traitementDDT" class="form-control" [(ngModel)]="incidentForm.traitementDDT" (ngModelChange)="onTreatmentTimeChange()" />
             </div>
             <div class="form-group">
-              <label for="traitementHDT">Heure début traitement</label>
+              <label for="traitementHDT">Heure début (HDT)</label>
               <input type="time" id="traitementHDT" name="traitementHDT" class="form-control" [(ngModel)]="incidentForm.traitementHDT" (ngModelChange)="onTreatmentTimeChange()" />
+            </div>
+            <div class="form-group">
+              <label for="traitementResponsable">Responsable d'action de traitement</label>
+              <input type="text" id="traitementResponsable" name="traitementResponsable" class="form-control" [(ngModel)]="incidentForm.traitementResponsable" />
+            </div>
+            <div class="form-group">
+              <label for="traitementEtat">État d'action de traitement</label>
+              <select id="traitementEtat" name="traitementEtat" class="form-control" [(ngModel)]="incidentForm.traitementEtat">
+                <option value="Ouvert">Ouvert</option>
+                <option value="En cours">En cours</option>
+                <option value="Clôturé">Clôturé</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="traitementDateCloture">Date clôture</label>
@@ -705,28 +761,21 @@
               <input type="time" id="traitementHeureCloture" name="traitementHeureCloture" class="form-control" [(ngModel)]="incidentForm.traitementHeureCloture" (ngModelChange)="onTreatmentTimeChange()" />
             </div>
             <div class="form-group col-span-2">
-              <label for="dureeTraitement">Durée de traitement (auto, modifiable)</label>
-              <input type="text" id="dureeTraitement" name="dureeTraitement" class="form-control" [(ngModel)]="incidentForm.dureeTraitement" placeholder="Calcul automatique — vous pouvez corriger manuellement" />
+              <label for="heureTraitement">Heure de traitement</label>
+              <input type="text" id="heureTraitement" name="heureTraitement" class="form-control" [(ngModel)]="incidentForm.heureTraitement" placeholder="Ex: 24h, 48h..." />
             </div>
           </div>
 
-          <!-- Section D: Préconisation -->
+          <!-- 4. Préconisation / Action Corrective -->
           <div class="form-section-divider">
             <h4 class="section-title">4. Préconisation / Action Corrective</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <label for="preconisation" style="display:flex; justify-content:space-between; align-items:center;">
-                Préconisation
-                <button type="button" class="btn-icon" (click)="startDictation('incident', 'preconisation')" [class.text-danger]="isDictating['preconisation']" title="Dicter avec la voix">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                </button>
+              <label for="actionCorrective" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Action corrective</span>
               </label>
-              <textarea id="preconisation" name="preconisation" class="form-control" rows="2" [(ngModel)]="incidentForm.preconisation"></textarea>
-            </div>
-            <div class="form-group col-span-2">
-              <label for="actionCorrective">Action corrective</label>
-              <input type="text" id="actionCorrective" name="actionCorrective" class="form-control" [(ngModel)]="incidentForm.actionCorrective" />
+              <textarea id="actionCorrective" name="actionCorrective" class="form-control" rows="2" [(ngModel)]="incidentForm.actionCorrective" placeholder="Détail de l'action corrective..."></textarea>
             </div>
             <div class="form-group">
               <label for="correctiveResponsable">Responsable</label>
@@ -747,12 +796,13 @@
             <div class="form-group">
               <label for="efficacite">Efficace ?</label>
               <select id="efficacite" name="efficacite" class="form-control" [(ngModel)]="incidentForm.efficacite">
-                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.label">{{ opt.label }}</option> }
+                <option value="Oui">Oui</option>
+                <option value="Non">Non</option>
               </select>
             </div>
             <div class="form-group col-span-2">
               <label for="commentaireEfficacite" style="display:flex; justify-content:space-between; align-items:center;">
-                Commentaire d'efficacité
+                <span>Commentaire</span>
                 <button type="button" class="btn-icon" (click)="startDictation('incident', 'commentaireEfficacite')" [class.text-danger]="isDictating['commentaireEfficacite']" title="Dicter avec la voix">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 </button>
@@ -761,134 +811,131 @@
             </div>
           </div>
 
-          <!-- Section E: Continuité (PCA) -->
+          <!-- 5. Événements similaires -->
           <div class="form-section-divider">
-            <h4 class="section-title">5. Continuité</h4>
+            <h4 class="section-title">5. Événements similaires</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <label>Y a-t-il un impact sur la continuité ?</label>
-              <select class="form-control" name="impactContinuite" [(ngModel)]="incidentForm.impactContinuite">
-                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+              <label>Y a-t-il des événements similaires ?</label>
+              <select class="form-control" name="evenementsSimilaires" [(ngModel)]="incidentForm.evenementsSimilaires">
+                <option value="Oui">Oui</option>
+                <option value="Non">Non</option>
+                <option value="NA">NA</option>
               </select>
             </div>
-            @if (incidentForm.impactContinuite) {
+            @if (incidentForm.evenementsSimilaires === 'Oui') {
               <div class="form-group col-span-2">
-                <label for="impactContinuiteDescription" style="display:flex; justify-content:space-between; align-items:center;">
-  <span>Description de l'impact sur la continuité</span>
-  <div style="display:flex; gap:0.5rem;">
-    <button type="button" class="btn-icon" (click)="magicFill('impactContinuiteDescription', 'incident')" title="Générer avec l'IA ✨">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
-    </button>
-    <button type="button" class="btn-icon" [class.mic-recording]="isDictating['impactContinuiteDescription']" (click)="startDictation('incident', 'impactContinuiteDescription')" title="Dicter avec la voix">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c-1.7 0-3 1.2-3 2.8v7.4c0 1.6 1.3 2.8 3 2.8s3-1.2 3-2.8V4.8C15 3.2 13.7 2 12 2z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-    </button>
-  </div>
-</label>
-                <textarea id="impactContinuiteDescription" name="impactContinuiteDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.impactContinuiteDescription"></textarea>
+                <label for="evenementsDetailsDescription" style="display:flex; justify-content:space-between; align-items:center;">
+                  <span>Plus de détails sur les événements similaires</span>
+                  <button type="button" class="btn-icon" (click)="startDictation('incident', 'evenementsDetailsDescription')" [class.text-danger]="isDictating['evenementsDetailsDescription']" title="Dicter avec la voix">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                  </button>
+                </label>
+                <textarea id="evenementsDetailsDescription" name="evenementsDetailsDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.evenementsDetailsDescription"></textarea>
               </div>
             }
           </div>
 
-          <!-- Section F: Risques Associés -->
+          <!-- 6. Changement déclenché -->
           <div class="form-section-divider">
-            <h4 class="section-title">6. Risques Associés</h4>
+            <h4 class="section-title">6. Changement déclenché</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <label>Y a-t-il des risques associés ?</label>
-              <select class="form-control" name="hasRisquesAssocies" [(ngModel)]="incidentForm.hasRisquesAssocies">
-                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+              <label>Cet événement peut-il déclencher un changement ?</label>
+              <select class="form-control" name="changementDeclenche" [(ngModel)]="incidentForm.changementDeclenche">
+                <option [ngValue]="true">Oui</option>
+                <option [ngValue]="false">Non</option>
               </select>
             </div>
-            @if (incidentForm.hasRisquesAssocies) {
+            @if (incidentForm.changementDeclenche) {
               <div class="form-group col-span-2">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                  <label style="margin: 0;">Liste des risques identifiés</label>
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="addRisque()">+ Ajouter un risque</button>
-                </div>
-                
-                @for (risque of incidentForm.risques; track $index) {
-                  <div class="risque-item" style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem; position: relative;">
-                    <button type="button" class="btn-close-modal" style="position: absolute; top: 0.5rem; right: 0.5rem;" (click)="removeRisque($index)">&times;</button>
-                    <div class="form-grid">
-                      <div class="form-group">
-                        <label>Référence du risque</label>
-                        <input type="text" class="form-control" [(ngModel)]="risque.reference" name="risqueRef{{$index}}" placeholder="Ex: R01" />
-                      </div>
-                      <div class="form-group col-span-2">
-                        <label style="display:flex; justify-content:space-between; align-items:center;">
-  <span>Description du risque</span>
-  <div style="display:flex; gap:0.5rem;">
-    <button type="button" class="btn-icon" [class.mic-recording]="isDictating['risqueDescription_' + $index]" (click)="startDictation('incident', 'risqueDescription', $index)" title="Dicter avec la voix">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c-1.7 0-3 1.2-3 2.8v7.4c0 1.6 1.3 2.8 3 2.8s3-1.2 3-2.8V4.8C15 3.2 13.7 2 12 2z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-    </button>
-  </div>
-</label>
-                        <textarea class="form-control" rows="2" [(ngModel)]="risque.description" name="risqueDesc{{$index}}" placeholder="Description détaillée..."></textarea>
-                      </div>
+                <label for="changementDeclencheDescription" style="display:flex; justify-content:space-between; align-items:center;">
+                  <span>Veuillez détailler le changement</span>
+                  <button type="button" class="btn-icon" (click)="magicFill('changementDeclencheDescription', 'incident')" title="Générer avec l'IA ✨">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
+                  </button>
+                </label>
+                <textarea id="changementDeclencheDescription" name="changementDeclencheDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.changementDeclencheDescription"></textarea>
+              </div>
+            }
+          </div>
+
+          <!-- 7. Mise à jour du PCA -->
+          <div class="form-section-divider">
+            <h4 class="section-title">7. Mise à jour du PCA</h4>
+          </div>
+          <div class="form-grid">
+            <div class="form-group col-span-2">
+              <label>Cet incident nécessite une mise à jour du PCA ?</label>
+              <select class="form-control" name="miseAJourPcaNecessaire" [(ngModel)]="incidentForm.miseAJourPcaNecessaire">
+                <option [ngValue]="true">Oui</option>
+                <option [ngValue]="false">Non</option>
+              </select>
+            </div>
+            @if (incidentForm.miseAJourPcaNecessaire) {
+              <div class="form-group col-span-2">
+                <label for="referencePca">Référence du PCA</label>
+                <input type="text" id="referencePca" name="referencePca" class="form-control" [(ngModel)]="incidentForm.referencePca" placeholder="Ex: PCA-2024-001" />
+              </div>
+            }
+          </div>
+
+          <!-- 8. Risques identifiés -->
+          <div class="form-section-divider">
+            <h4 class="section-title">8. Risques identifiés suite à l'événement</h4>
+          </div>
+          <div class="form-grid">
+            <div class="form-group col-span-2">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <label style="margin: 0;">Liste des risques</label>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="addRisque()">+ Ajouter un risque</button>
+              </div>
+              
+              @for (risque of incidentForm.risques; track $index) {
+                <div class="risque-item" style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem; position: relative;">
+                  <button type="button" class="btn-close-modal" style="position: absolute; top: 0.5rem; right: 0.5rem;" (click)="removeRisque($index)">&times;</button>
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label>Référence du risque</label>
+                      <input type="text" class="form-control" [(ngModel)]="risque.reference" name="risqueRef{{$index}}" placeholder="Ex: R01" />
+                    </div>
+                    <div class="form-group col-span-2">
+                      <label style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Description du risque</span>
+                        <button type="button" class="btn-icon" [class.mic-recording]="isDictating['risqueDescription_' + $index]" (click)="startDictation('incident', 'risqueDescription', $index)" title="Dicter avec la voix">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c-1.7 0-3 1.2-3 2.8v7.4c0 1.6 1.3 2.8 3 2.8s3-1.2 3-2.8V4.8C15 3.2 13.7 2 12 2z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        </button>
+                      </label>
+                      <textarea class="form-control" rows="2" [(ngModel)]="risque.description" name="risqueDesc{{$index}}" placeholder="Description détaillée..."></textarea>
                     </div>
                   </div>
-                }
-                @if (!incidentForm.risques || incidentForm.risques.length === 0) {
-                  <p class="text-muted" style="font-size: 0.85rem; font-style: italic;">Aucun risque ajouté. Cliquez sur le bouton ci-dessus pour en ajouter un.</p>
-                }
-              </div>
-              <div class="form-group">
-                <label>Y a-t-il des risques à mettre à jour ?</label>
-                <select class="form-control" name="risquesAMettreAJour" [(ngModel)]="incidentForm.risquesAMettreAJour">
-                  @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
-                </select>
-              </div>
-              @if (incidentForm.risquesAMettreAJour) {
-                <div class="form-group col-span-2">
-                  <label for="risquesMiseAJourDescription">Risques et Description (ID - Description)</label>
-                  <textarea id="risquesMiseAJourDescription" name="risquesMiseAJourDescription" class="form-control" rows="3" [(ngModel)]="incidentForm.risquesMiseAJourDescription" placeholder="Ex: R01 - Risque de sécurité réseau étendu..."></textarea>
                 </div>
               }
-            }
+              @if (!incidentForm.risques || incidentForm.risques.length === 0) {
+                <p class="text-muted" style="font-size: 0.85rem; font-style: italic;">Aucun risque ajouté.</p>
+              }
+            </div>
           </div>
 
-          <!-- Section G: Capitalisation -->
+          <!-- 9. Risques à mettre à jour -->
           <div class="form-section-divider">
-            <h4 class="section-title">7. Capitalisation</h4>
+            <h4 class="section-title">9. Risques à mettre à jour</h4>
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <label>Capitalisation (Oui/Non)</label>
-              <select class="form-control" name="capitalisation" [(ngModel)]="incidentForm.capitalisation">
-                @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
+              <label>Y a-t-il des risques à mettre à jour ?</label>
+              <select class="form-control" name="risquesAMettreAJour" [(ngModel)]="incidentForm.risquesAMettreAJour">
+                <option [ngValue]="false">Non</option>
+                <option [ngValue]="true">Oui</option>
               </select>
             </div>
-            @if (incidentForm.capitalisation) {
-              <div class="form-group">
-                <label>Y a-t-il des événements similaires ?</label>
-                <select class="form-control" name="evenementsSimilaires" [(ngModel)]="incidentForm.evenementsSimilaires">
-                  @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
-                </select>
+            @if (incidentForm.risquesAMettreAJour) {
+              <div class="form-group col-span-2">
+                <label for="risquesMiseAJourDescription">ID du risque et Description du risque</label>
+                <textarea id="risquesMiseAJourDescription" name="risquesMiseAJourDescription" class="form-control" rows="3" [(ngModel)]="incidentForm.risquesMiseAJourDescription" placeholder="Ex: R01 - Risque de sécurité réseau étendu..."></textarea>
               </div>
-              <div class="form-group">
-                <label>Cet événement déclenche-t-il un changement ?</label>
-                <select class="form-control" name="changementDeclenche" [(ngModel)]="incidentForm.changementDeclenche">
-                  @for (opt of yesNoOptions; track opt.value) { <option [ngValue]="opt.value">{{ opt.label }}</option> }
-                </select>
-              </div>
-              @if (incidentForm.changementDeclenche) {
-                <div class="form-group col-span-2">
-                  <label for="changementDeclencheDescription" style="display:flex; justify-content:space-between; align-items:center;">
-  <span>Veuillez détailler le changement à réaliser</span>
-  <div style="display:flex; gap:0.5rem;">
-    <button type="button" class="btn-icon" (click)="magicFill('changementDeclencheDescription', 'incident')" title="Générer avec l'IA ✨">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
-    </button>
-    <button type="button" class="btn-icon" [class.mic-recording]="isDictating['changementDeclencheDescription']" (click)="startDictation('incident', 'changementDeclencheDescription')" title="Dicter avec la voix">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c-1.7 0-3 1.2-3 2.8v7.4c0 1.6 1.3 2.8 3 2.8s3-1.2 3-2.8V4.8C15 3.2 13.7 2 12 2z"></path><path d="M19 10v2c0 3.9-3.1 7-7 7s-7-3.1-7-7v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-    </button>
-  </div>
-</label>
-                  <textarea id="changementDeclencheDescription" name="changementDeclencheDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.changementDeclencheDescription"></textarea>
-                </div>
-              }
             }
           </div>
         </div>

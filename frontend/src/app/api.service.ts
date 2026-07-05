@@ -116,6 +116,10 @@ export class ApiService {
     return this.http.delete<any>(`${this.baseUrl}/evenements/${id}`, { headers: this.getHeaders() });
   }
 
+  notifyRssiEvent(id: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/evenements/${id}/notify-rssi`, {}, { headers: this.getHeaders() });
+  }
+
   // --- Incidents ---
   getIncidents(): Observable<any[]> {
     return this.http.get<any[]>(`${this.baseUrl}/incidents`, { headers: this.getHeaders() });

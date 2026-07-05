@@ -35,6 +35,8 @@ interface Evenement {
   commentaireIntegrite?: string;
   impactDisponibilite?: string;
   commentaireDisponibilite?: string;
+  envoyeAuRssi?: boolean;
+  dateEnvoiRssi?: string;
 }
 
 interface Risque {
@@ -54,6 +56,8 @@ interface Incident {
   mesureDelai: string;
   mesureEtat: string;
   mesureDDT: string;
+  mesureDateCloture: string;
+  mesureHeureCloture: string;
   dureeAttenuation: string;
   heureAttenuation: string;
   traitementAction: string;
@@ -77,7 +81,8 @@ interface Incident {
   impactContinuite: boolean;
   impactContinuiteDescription: string;
   capitalisation: boolean;
-  evenementsSimilaires: boolean;
+  evenementsSimilaires: string;
+  evenementsDetailsDescription: string;
   changementDeclenche: boolean;
   changementDeclencheDescription: string;
   miseAJourPcaNecessaire: boolean;
@@ -109,6 +114,7 @@ export class DashboardComponent implements OnInit {
   logs = signal<any[]>([]);
 
   isSubmitting = signal<boolean>(false);
+  isSendingToRssi = signal<boolean>(false);
 
   // Selected Items for Forms/Modals
   selectedEvent = signal<Evenement | null>(null);
@@ -235,6 +241,8 @@ export class DashboardComponent implements OnInit {
       mesureDelai: '',
       mesureEtat: 'En cours',
       mesureDDT: new Date().toISOString().slice(0, 10),
+      mesureDateCloture: '',
+      mesureHeureCloture: '',
       dureeAttenuation: '',
       heureAttenuation: new Date().toTimeString().slice(0, 5),
       traitementAction: '',
@@ -258,7 +266,8 @@ export class DashboardComponent implements OnInit {
       impactContinuite: false,
       impactContinuiteDescription: '',
       capitalisation: false,
-      evenementsSimilaires: false,
+      evenementsSimilaires: 'Non',
+      evenementsDetailsDescription: '',
       changementDeclenche: false,
       changementDeclencheDescription: '',
       miseAJourPcaNecessaire: false,
@@ -444,10 +453,31 @@ export class DashboardComponent implements OnInit {
     return (value || '').trim().length > 0;
   }
 
+  validateEventFormComplete(event: Evenement): string | null {
+    if (!this.isFilled(event.libelleErreur)) return 'Le libellé d\'erreur (titre) est obligatoire.';
+    if (!this.isFilled(event.descriptionDetaillee)) return 'La description détaillée est obligatoire.';
+    if (!this.isFilled(event.dateHeureDetection)) return 'La date et l\'heure de détection sont obligatoires.';
+    if (!this.isFilled(event.declarePar)) return 'Le champ « Détecté par » est obligatoire.';
+    if (!this.isFilled(event.detecteParSource)) return 'La source de détection est obligatoire.';
+    if (!this.isFilled(event.causesPossibles)) return 'Les causes possibles sont obligatoires.';
+    if (!this.isFilled(event.etat)) return 'L\'état de l\'événement est obligatoire.';
+    if (!this.isFilled(event.natureEvenement)) return 'La nature de l\'événement est obligatoire.';
+    return null;
+  }
+
+  isEventFormComplete(event: Evenement = this.eventForm): boolean {
+    return this.validateEventFormComplete(event) === null;
+  }
+
+  canSendEventToRssi(event?: Evenement | null): boolean {
+    const target = event ?? this.eventForm;
+    return !target.envoyeAuRssi && this.isEventFormComplete(target);
+  }
+
   private sanitizeIncidentPayload(incident: Incident): Incident {
     const payload = { ...incident };
     const dateFields: (keyof Incident)[] = [
-      'mesureDDT', 'traitementDDT', 'traitementDateCloture',
+      'mesureDDT', 'mesureDateCloture', 'mesureHeureCloture', 'traitementDDT', 'traitementDateCloture',
       'correctiveDateDebut', 'correctiveDateCloture', 'dateMesureEfficacite', 'suiviDate',
       'heureAttenuation', 'traitementHDT', 'traitementHeureCloture', 'heureTraitement'
     ];
@@ -467,13 +497,13 @@ export class DashboardComponent implements OnInit {
     };
 
     this.incidentForm.typesIncident = this.incidentForm.typesIncident || [];
-    this.incidentForm.hasRisquesAssocies = this.incidentForm.hasRisquesAssocies ?? false;
     this.incidentForm.impactContinuite = this.incidentForm.impactContinuite ?? false;
-    this.incidentForm.capitalisation = this.incidentForm.capitalisation ?? false;
-    this.incidentForm.evenementsSimilaires = this.incidentForm.evenementsSimilaires ?? false;
     this.incidentForm.changementDeclenche = this.incidentForm.changementDeclenche ?? false;
     this.incidentForm.miseAJourPcaNecessaire = this.incidentForm.miseAJourPcaNecessaire ?? false;
     this.incidentForm.risquesAMettreAJour = this.incidentForm.risquesAMettreAJour ?? false;
+    this.incidentForm.evenementsSimilaires = (this.incidentForm.evenementsSimilaires && typeof this.incidentForm.evenementsSimilaires === 'string') 
+      ? this.incidentForm.evenementsSimilaires 
+      : 'Non';
     this.incidentForm.suiviAuteur = this.incidentForm.suiviAuteur || this.apiService.currentUser()?.username || '';
     this.incidentForm.suiviDate = this.toDateInputValue(this.incidentForm.suiviDate) || new Date().toISOString().slice(0, 10);
   }
@@ -502,6 +532,7 @@ export class DashboardComponent implements OnInit {
   // --- Evenement Operations ---
   openCreateEvent(): void {
     this.eventForm = this.initEventForm();
+    this.eventForm.declarePar = this.apiService.currentUser()?.username || '';
     this.selectedEvent.set(null);
     this.showEventForm.set(true);
   }
@@ -561,12 +592,9 @@ export class DashboardComponent implements OnInit {
   }
 
   saveEvent(): void {
-    if (!this.isFilled(this.eventForm.libelleErreur) || !this.isFilled(this.eventForm.dateHeureDetection)) {
-      this.errorMsg.set('Le titre et la date de detection sont obligatoires.');
-      return;
-    }
-    if (!this.isFilled(this.eventForm.natureEvenement) || !this.isFilled(this.eventForm.etat)) {
-      this.errorMsg.set('La nature et l etat de l evenement sont obligatoires.');
+    const validationError = this.validateEventFormComplete(this.eventForm);
+    if (validationError) {
+      this.errorMsg.set(validationError);
       return;
     }
     this.eventForm.impactMineur = this.eventForm.impactNiveau === 'Mineur';
@@ -579,9 +607,13 @@ export class DashboardComponent implements OnInit {
       : this.apiService.createEvent(this.eventForm);
 
     operation.subscribe({
-      next: () => {
-        this.successMsg.set(this.selectedEvent() ? 'Événement mis à jour avec succès.' : 'Événement créé avec succès.');
-        this.showEventForm.set(false);
+      next: (saved) => {
+        this.successMsg.set(this.selectedEvent() ? 'Événement mis à jour avec succès.' : 'Événement enregistré avec succès. Cliquez sur « Envoyer au RSSI » pour notifier le RSSI.');
+        this.errorMsg.set('');
+        if (saved?.id) {
+          this.selectedEvent.set({ ...this.eventForm, ...saved });
+          this.eventForm = { ...this.eventForm, ...saved };
+        }
         this.loadEvents();
         this.loadLogs();
         this.isSubmitting.set(false);
@@ -589,6 +621,59 @@ export class DashboardComponent implements OnInit {
       error: () => {
         this.errorMsg.set('Erreur de validation ou problème de connexion serveur.');
         this.isSubmitting.set(false);
+      }
+    });
+  }
+
+  sendEventToRssi(event?: Evenement): void {
+    const formData = event ? { ...event } : { ...this.eventForm };
+    const validationError = this.validateEventFormComplete(formData);
+    if (validationError) {
+      this.errorMsg.set(validationError);
+      return;
+    }
+    if (formData.envoyeAuRssi) {
+      this.errorMsg.set('Cet événement a déjà été envoyé au RSSI.');
+      return;
+    }
+
+    formData.impactMineur = formData.impactNiveau === 'Mineur';
+    if (this.isSendingToRssi()) return;
+    this.isSendingToRssi.set(true);
+
+    const saveOperation = formData.id
+      ? this.apiService.updateEvent(formData.id, formData)
+      : this.apiService.createEvent(formData);
+
+    saveOperation.subscribe({
+      next: (saved) => {
+        const eventId = saved?.id ?? formData.id;
+        if (!eventId) {
+          this.errorMsg.set('Impossible d\'envoyer au RSSI : événement non enregistré.');
+          this.isSendingToRssi.set(false);
+          return;
+        }
+
+        this.apiService.notifyRssiEvent(eventId).subscribe({
+          next: () => {
+            this.successMsg.set('Événement enregistré et envoyé au RSSI avec succès.');
+            this.errorMsg.set('');
+            this.showEventForm.set(false);
+            this.selectedEvent.set(null);
+            this.loadEvents();
+            this.loadLogs();
+            this.isSendingToRssi.set(false);
+          },
+          error: (err) => {
+            this.errorMsg.set(err?.error?.message || 'Erreur lors de l\'envoi au RSSI.');
+            this.loadEvents();
+            this.isSendingToRssi.set(false);
+          }
+        });
+      },
+      error: () => {
+        this.errorMsg.set('Erreur lors de l\'enregistrement de l\'événement.');
+        this.isSendingToRssi.set(false);
       }
     });
   }
@@ -645,6 +730,14 @@ export class DashboardComponent implements OnInit {
     const event = this.selectedEvent();
     if (!event) return;
 
+    // Validation: Ensure all three impacts are filled
+    if (this.eventForm.impactConfidentialite === 'Aucun' || 
+        this.eventForm.impactIntegrite === 'Aucun' || 
+        this.eventForm.impactDisponibilite === 'Aucun') {
+      this.errorMsg.set('⚠️ Vous devez remplir les trois impacts (Confidentialité, Intégrité, Disponibilité) pour qualifier l\'événement.');
+      return;
+    }
+
     const previousQualification = event.qualification;
     event.qualification = this.qualifyValue;
     event.impactConfidentialite = this.eventForm.impactConfidentialite;
@@ -666,27 +759,42 @@ export class DashboardComponent implements OnInit {
             this.loadEvents();
             this.loadIncidents();
             this.loadLogs();
-          } else if (previousQualification !== 'INCIDENT') {
+          } else {
             const newIncident = this.sanitizeIncidentPayload(this.initIncidentForm(event.id!));
             this.apiService.createIncident(newIncident).subscribe({
               next: (savedIncident) => {
-                this.incidents.set([...this.incidents(), savedIncident]);
-                this.incidentForm = savedIncident;
-                this.prepareIncidentFormDefaults();
-                this.selectedIncident.set(savedIncident);
-                this.showIncidentForm.set(true);
-                this.successMsg.set('Événement qualifié comme incident. Complétez le plan de traitement.');
-                this.loadEvents();
-                this.loadIncidents();
-                this.loadLogs();
+                try {
+                  if (!this.incidents().some(inc => inc.id === savedIncident.id)) {
+                    this.incidents.set([...this.incidents(), savedIncident]);
+                  }
+                  this.selectedIncident.set(savedIncident);
+                  this.incidentForm = JSON.parse(JSON.stringify(savedIncident));
+                  this.prepareIncidentFormDefaults();
+                  this.incidentForm.mesureDDT = this.toDateInputValue(savedIncident.mesureDDT);
+                  this.incidentForm.mesureDateCloture = this.toDateInputValue(savedIncident.mesureDateCloture);
+                  this.incidentForm.mesureHeureCloture = this.toTimeInputValue(savedIncident.mesureHeureCloture);
+                  this.incidentForm.traitementDDT = this.toDateInputValue(savedIncident.traitementDDT);
+                  this.incidentForm.traitementDateCloture = this.toDateInputValue(savedIncident.traitementDateCloture);
+                  this.incidentForm.correctiveDateDebut = this.toDateInputValue(savedIncident.correctiveDateDebut);
+                  this.incidentForm.correctiveDateCloture = this.toDateInputValue(savedIncident.correctiveDateCloture);
+                  this.incidentForm.dateMesureEfficacite = this.toDateInputValue(savedIncident.dateMesureEfficacite);
+                  this.incidentForm.suiviDate = this.toDateInputValue(savedIncident.suiviDate);
+                  
+                  this.showIncidentForm.set(true);
+                  this.successMsg.set('Événement qualifié comme incident. Complétez le plan de traitement.');
+                  this.loadEvents();
+                  this.loadIncidents();
+                  this.loadLogs();
+                } catch (err) {
+                  console.error('Erreur lors de l\'affichage du formulaire incident:', err);
+                  this.errorMsg.set('Erreur lors de l\'affichage du formulaire incident.');
+                }
               },
-              error: () => this.errorMsg.set('Erreur lors de la création du plan d\'incident.')
+              error: (err) => {
+                console.error('Erreur API lors de la création du plan d\'incident:', err);
+                this.errorMsg.set('Erreur lors de la création du plan d\'incident.');
+              }
             });
-          } else {
-            this.successMsg.set('Qualification incident confirmée.');
-            this.loadEvents();
-            this.loadIncidents();
-            this.loadLogs();
           }
         } else {
           this.successMsg.set('Événement qualifié comme non-incident.');
@@ -694,7 +802,10 @@ export class DashboardComponent implements OnInit {
           this.loadLogs();
         }
       },
-      error: () => this.errorMsg.set('Erreur lors de la qualification.')
+      error: (err) => {
+        console.error('Erreur lors de la qualification:', err);
+        this.errorMsg.set('Erreur lors de la qualification.');
+      }
     });
   }
 
@@ -724,6 +835,8 @@ export class DashboardComponent implements OnInit {
     };
     this.prepareIncidentFormDefaults();
     this.incidentForm.mesureDDT = this.toDateInputValue(incident.mesureDDT);
+    this.incidentForm.mesureDateCloture = this.toDateInputValue(incident.mesureDateCloture);
+    this.incidentForm.mesureHeureCloture = this.toTimeInputValue(incident.mesureHeureCloture);
     this.incidentForm.traitementDDT = this.toDateInputValue(incident.traitementDDT);
     this.incidentForm.traitementDateCloture = this.toDateInputValue(incident.traitementDateCloture);
     this.incidentForm.correctiveDateDebut = this.toDateInputValue(incident.correctiveDateDebut);

@@ -56,6 +56,8 @@ public class IncidentService {
             existing.setMesureDelai(details.getMesureDelai());
             existing.setMesureEtat(details.getMesureEtat());
             existing.setMesureDDT(details.getMesureDDT());
+            existing.setMesureDateCloture(details.getMesureDateCloture());
+            existing.setMesureHeureCloture(details.getMesureHeureCloture());
             existing.setDureeAttenuation(details.getDureeAttenuation());
             existing.setHeureAttenuation(details.getHeureAttenuation());
 
@@ -87,6 +89,7 @@ public class IncidentService {
             existing.setCapitalisation(details.getCapitalisation());
 
             existing.setEvenementsSimilaires(details.getEvenementsSimilaires());
+            existing.setEvenementsDetailsDescription(details.getEvenementsDetailsDescription());
             existing.setChangementDeclenche(details.getChangementDeclenche());
             existing.setChangementDeclencheDescription(details.getChangementDeclencheDescription());
             existing.setMiseAJourPcaNecessaire(details.getMiseAJourPcaNecessaire());

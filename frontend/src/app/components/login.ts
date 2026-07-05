@@ -285,7 +285,7 @@ import { ApiService } from '../api.service';
     }
 
     .auth-logo {
-      height: 130px;
+      height: 190px;
       width: auto;
       max-width: 100%;
       object-fit: contain;
@@ -307,9 +307,9 @@ import { ApiService } from '../api.service';
     }
 
     .auth-card-title {
-      font-size: 1.15rem;
-      font-weight: 500;
-      color: #64748b !important;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #000000 !important;
       text-transform: none !important;
       letter-spacing: 0;
       margin: 0;

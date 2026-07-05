@@ -83,4 +83,9 @@ public class Evenement {
     private String qualifiePar;
 
     private String declarePar;
+
+    @Builder.Default
+    private Boolean envoyeAuRssi = false;
+
+    private LocalDateTime dateEnvoiRssi;
 }
