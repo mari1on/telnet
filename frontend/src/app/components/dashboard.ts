@@ -41,8 +41,8 @@ interface Evenement {
 
 interface Risque {
   id?: number;
-  reference: string;
-  description: string;
+ reference?: string;
+description?: string;
 }
 
 interface Incident {
@@ -228,6 +228,7 @@ export class DashboardComponent implements OnInit {
       impactDisponibilite: 'Aucun',
       commentaireDisponibilite: ''
     };
+    
   }
 
   initIncidentForm(eventId: number): Incident {
