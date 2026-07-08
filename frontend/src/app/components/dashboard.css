@@ -97,6 +97,19 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}.chart-container {
+  width: 48%;
+  display: inline-block;
+  margin: 10px;
+  padding: 10px;
+  background: #1e1e2f;
+  border-radius: 10px;
+}
+
+.dashboard-charts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 .nav-tab-btn:hover {
@@ -219,7 +232,7 @@ body {
   font-weight: 900;
   margin-top: 0.75rem;
   letter-spacing: -1px;
- background: #1b3f75;
+  background: linear-gradient(to right, #1b3f75, #60a5fa, #93c5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
