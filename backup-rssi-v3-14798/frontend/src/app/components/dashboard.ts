@@ -98,30 +98,6 @@ interface Incident {
   evenement: Partial<Evenement> & { id: number };
 }
 
-
-interface AssistantMatch {
-  eventId: number;
-  title: string;
-  date?: string;
-  score: number;
-  qualification?: string;
-  reason?: string;
-}
-
-interface AssistantResponse {
-  answer: string;
-  confirmationPrompt: string;
-  similarFound: boolean;
-  matches: AssistantMatch[];
-  actions: string[];
-  source: string;
-}
-
-interface ChatMessage {
-  role: 'assistant' | 'user';
-  text: string;
-}
-
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -130,31 +106,10 @@ interface ChatMessage {
   styleUrl: './dashboard.css'
 })
 export class DashboardComponent implements OnInit {
-  activeTab = signal<'stats' | 'events' | 'incidents' | 'logs' | 'assistant' | 'settings'>('stats');
+  activeTab = signal<'stats' | 'events' | 'incidents' | 'logs' | 'settings'>('stats');
   darkMode = signal(true);
   sidebarOpen = signal(false);
   productUpdates = signal(false);
-
-  // Recherche et filtres des listes
-  eventSearch = '';
-  eventStateFilter = 'ALL';
-  eventQualificationFilter = 'ALL';
-  eventRssiFilter = 'ALL';
-  incidentSearch = '';
-  incidentStateFilter = 'ALL';
-  logSearch = '';
-
-  // Assistant RSSI local (moteur Python, sans service d'IA externe)
-  assistantSelectedEventId: number | null = null;
-  assistantQuestion = '';
-  assistantLoading = signal(false);
-  assistantResult = signal<AssistantResponse | null>(null);
-  assistantMessages = signal<ChatMessage[]>([
-    {
-      role: 'assistant',
-      text: 'Sélectionnez un événement puis décrivez le problème. Je rechercherai les cas similaires déjà traités et je proposerai des actions à confirmer.'
-    }
-  ]);
 
   // Lists
   events = signal<Evenement[]>([]);
@@ -378,14 +333,13 @@ export class DashboardComponent implements OnInit {
   }
 
   // --- Actions ---
-  switchTab(tab: 'events' | 'incidents' | 'logs' | 'stats' | 'assistant' | 'settings'): void {
+  switchTab(tab: 'events' | 'incidents' | 'logs' | 'stats' | 'settings'): void {
     this.activeTab.set(tab as any);
     this.successMsg.set('');
     this.errorMsg.set('');
     if (tab === 'events') this.loadEvents();
     if (tab === 'incidents') this.loadIncidents();
     if (tab === 'logs') this.loadLogs();
-    if (tab === 'assistant') this.prepareAssistantSelection();
   }
 
   getNonQualifiedCount(): number {
@@ -421,43 +375,7 @@ export class DashboardComponent implements OnInit {
   }
 
   getEvenementsClasses(): number {
-    return this.events().filter(e => e.qualification && e.qualification !== 'NON_QUALIFIE').length;
-  }
-
-  getEvenementsClassesPercent(): number {
-    const total = this.events().length;
-    return total === 0 ? 0 : Math.round((this.getEvenementsClasses() / total) * 100);
-  }
-
-  getIncidentsImpactCritiqueConfidentialite(): number {
-    return this.incidents().filter(incident =>
-      this.getIncidentEvent(incident)?.impactConfidentialite === 'Critique'
-    ).length;
-  }
-
-  getIncidentsImpactCritiqueDisponibilite(): number {
-    return this.incidents().filter(incident =>
-      this.getIncidentEvent(incident)?.impactDisponibilite === 'Critique'
-    ).length;
-  }
-
-  getIncidentsImpactCritiqueIntegrite(): number {
-    return this.incidents().filter(incident =>
-      this.getIncidentEvent(incident)?.impactIntegrite === 'Critique'
-    ).length;
-  }
-
-  getCriticalImpactStats(): Array<{ label: string; count: number; key: string }> {
-    return [
-      { label: 'Confidentialité', count: this.getIncidentsImpactCritiqueConfidentialite(), key: 'confidentialite' },
-      { label: 'Disponibilité', count: this.getIncidentsImpactCritiqueDisponibilite(), key: 'disponibilite' },
-      { label: 'Intégrité', count: this.getIncidentsImpactCritiqueIntegrite(), key: 'integrite' }
-    ];
-  }
-
-  getCriticalImpactBarWidth(count: number): number {
-    const max = Math.max(...this.getCriticalImpactStats().map(item => item.count), 1);
-    return count === 0 ? 0 : Math.max(12, Math.round((count / max) * 100));
+    return this.events().filter(e => e.qualification === 'NON_INCIDENT').length;
   }
 
   // Rough estimation of average duration (indisponibilité) in minutes
@@ -566,91 +484,6 @@ export class DashboardComponent implements OnInit {
   }
 
   // --------------------------
-
-
-  getFilteredEvents(): Evenement[] {
-    const search = this.normalizeSearch(this.eventSearch);
-    return this.events().filter(event => {
-      const searchable = this.normalizeSearch([
-        event.libelleErreur,
-        event.descriptionDetaillee,
-        event.detecteParSource,
-        event.declarePar,
-        event.etat,
-        event.qualification,
-        event.natureEvenement,
-        event.idTicket,
-        event.codeErreur,
-        event.serviceOsAppli
-      ].filter(Boolean).join(' '));
-
-      const matchesSearch = !search || searchable.includes(search);
-      const matchesState = this.eventStateFilter === 'ALL' || event.etat === this.eventStateFilter;
-      const matchesQualification = this.eventQualificationFilter === 'ALL'
-        || event.qualification === this.eventQualificationFilter;
-      const matchesRssi = this.eventRssiFilter === 'ALL'
-        || (this.eventRssiFilter === 'SENT' && event.envoyeAuRssi === true)
-        || (this.eventRssiFilter === 'NOT_SENT' && event.envoyeAuRssi !== true);
-
-      return matchesSearch && matchesState && matchesQualification && matchesRssi;
-    });
-  }
-
-  getFilteredIncidents(): Incident[] {
-    const search = this.normalizeSearch(this.incidentSearch);
-    return this.incidents().filter(incident => {
-      const event = this.getIncidentEvent(incident);
-      const searchable = this.normalizeSearch([
-        incident.id,
-        event?.id,
-        event?.libelleErreur,
-        event?.descriptionDetaillee,
-        event?.natureEvenement,
-        incident.traitementEtat,
-        incident.traitementResponsable,
-        incident.niveauImpact,
-        incident.dureeIndisponibilite,
-        incident.dureeTraitement
-      ].filter(value => value !== undefined && value !== null).join(' '));
-
-      const matchesSearch = !search || searchable.includes(search);
-      const matchesState = this.incidentStateFilter === 'ALL'
-        || incident.traitementEtat === this.incidentStateFilter;
-      return matchesSearch && matchesState;
-    });
-  }
-
-  getFilteredLogs(): any[] {
-    const search = this.normalizeSearch(this.logSearch);
-    if (!search) return this.logs();
-    return this.logs().filter(log =>
-      this.normalizeSearch(`${log.username || ''} ${log.action || ''} ${log.timestamp || ''}`).includes(search)
-    );
-  }
-
-  resetEventFilters(): void {
-    this.eventSearch = '';
-    this.eventStateFilter = 'ALL';
-    this.eventQualificationFilter = 'ALL';
-    this.eventRssiFilter = 'ALL';
-  }
-
-  resetIncidentFilters(): void {
-    this.incidentSearch = '';
-    this.incidentStateFilter = 'ALL';
-  }
-
-  resetLogFilters(): void {
-    this.logSearch = '';
-  }
-
-  private normalizeSearch(value: unknown): string {
-    return String(value ?? '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .trim();
-  }
 
   getIncidentEvent(incident: Incident): Evenement | undefined {
     const embedded = incident.evenement as Partial<Evenement> | undefined;
@@ -763,128 +596,6 @@ export class DashboardComponent implements OnInit {
       confirmPassword: ''
     };
     this.showUserModal.set(true);
-  }
-
-
-  openAssistant(): void {
-    this.activeTab.set('assistant');
-    this.successMsg.set('');
-    this.errorMsg.set('');
-    this.prepareAssistantSelection();
-    this.closeSidebar();
-  }
-
-  private prepareAssistantSelection(): void {
-    if (this.assistantSelectedEventId === null) {
-      const firstCandidate = this.events().find(event => event.id);
-      this.assistantSelectedEventId = firstCandidate?.id ?? null;
-    }
-  }
-
-  sendAssistantMessage(): void {
-    const question = this.assistantQuestion.trim();
-    if (!question) {
-      this.errorMsg.set('Décrivez le problème ou posez une question à l’assistant.');
-      return;
-    }
-
-    if (!this.assistantSelectedEventId) {
-      this.errorMsg.set('Sélectionnez un événement à analyser.');
-      return;
-    }
-
-    this.errorMsg.set('');
-    const history = this.assistantMessages()
-      .slice(-8)
-      .map(message => ({ role: message.role, text: message.text }));
-    this.assistantMessages.update(messages => [...messages, { role: 'user', text: question }]);
-    this.assistantLoading.set(true);
-
-    this.apiService.runLocalRssiAssistant({
-      eventId: this.assistantSelectedEventId,
-      question,
-      history
-    }).subscribe({
-      next: (result: AssistantResponse) => {
-        this.assistantResult.set(result);
-        this.assistantMessages.update(messages => [
-          ...messages,
-          { role: 'assistant', text: `${result.answer}\n\n${result.confirmationPrompt}` }
-        ]);
-        this.assistantQuestion = '';
-        this.assistantLoading.set(false);
-      },
-      error: (err) => {
-        const message = err?.error?.message
-          || 'Le moteur Python local ne répond pas. Vérifiez que Python 3 est installé et que Spring Boot a été redémarré.';
-        this.errorMsg.set(message);
-        this.assistantMessages.update(messages => [
-          ...messages,
-          { role: 'assistant', text: message }
-        ]);
-        this.assistantLoading.set(false);
-      }
-    });
-  }
-
-  applyAssistantActions(): void {
-    const result = this.assistantResult();
-    const eventId = this.assistantSelectedEventId;
-    if (!result || !eventId || result.actions.length === 0) {
-      this.errorMsg.set('Aucune action proposée à appliquer.');
-      return;
-    }
-
-    const existingIncident = this.findIncidentForEvent(eventId);
-    if (existingIncident) {
-      this.openEditIncident(existingIncident);
-    } else {
-      const event = this.events().find(item => item.id === eventId);
-      if (!event) {
-        this.errorMsg.set('Événement introuvable.');
-        return;
-      }
-      this.selectedEvent.set(event);
-      this.selectedIncident.set(null);
-      this.incidentForm = this.initIncidentForm(eventId);
-      this.prepareIncidentFormDefaults();
-      this.showIncidentForm.set(true);
-    }
-
-    const actionsText = result.actions.map((action, index) => `${index + 1}. ${action}`).join('\n');
-    this.incidentForm.traitementAction = this.incidentForm.traitementAction || actionsText;
-    this.incidentForm.preconisation = this.incidentForm.preconisation || result.answer;
-    this.incidentForm.evenementsSimilaires = result.similarFound ? 'Oui' : 'Non';
-    this.incidentForm.evenementsDetailsDescription = this.incidentForm.evenementsDetailsDescription
-      || result.matches.map(match => `#EV-${match.eventId} — ${match.title}`).join('\n');
-    this.successMsg.set('Les actions confirmées ont été préparées dans le plan d’incident. Vérifiez-les avant de sauvegarder.');
-  }
-
-  cancelAssistantProposal(): void {
-    if (!this.assistantResult()) {
-      return;
-    }
-    this.assistantResult.set(null);
-    this.assistantMessages.update(messages => [
-      ...messages,
-      {
-        role: 'assistant',
-        text: 'Proposition annulée. Aucune action n’a été ajoutée au plan d’incident. Vous pouvez préciser le contexte et poser une nouvelle question.'
-      }
-    ]);
-    this.successMsg.set('Proposition annulée sans modification du plan d’incident.');
-    this.errorMsg.set('');
-  }
-
-  clearAssistantConversation(): void {
-    this.assistantResult.set(null);
-    this.assistantQuestion = '';
-    this.assistantMessages.set([
-      {
-        role: 'assistant',
-        text: 'Nouvelle analyse prête. Sélectionnez un événement et décrivez la situation.'
-      }
-    ]);
   }
 
   openSettings(): void {
@@ -1005,36 +716,25 @@ export class DashboardComponent implements OnInit {
 
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
-    const wasEditing = Boolean(this.selectedEvent());
 
-    const operation = wasEditing
+    const operation = this.selectedEvent()
       ? this.apiService.updateEvent(this.selectedEvent()!.id!, this.eventForm)
       : this.apiService.createEvent(this.eventForm);
 
     operation.subscribe({
       next: (saved) => {
-        this.successMsg.set(wasEditing
-          ? 'Événement mis à jour avec succès.'
-          : (this.apiService.isRssi()
-              ? 'Événement enregistré avec succès.'
-              : 'Événement enregistré avec succès. Cliquez sur « Envoyer au RSSI » pour notifier le RSSI.'));
+        this.successMsg.set(this.selectedEvent() ? 'Événement mis à jour avec succès.' : 'Événement enregistré avec succès. Cliquez sur « Envoyer au RSSI » pour notifier le RSSI.');
         this.errorMsg.set('');
-
-        if (this.apiService.isRssi()) {
-          this.showEventForm.set(false);
-          this.selectedEvent.set(null);
-          this.eventForm = this.initEventForm();
-        } else if (saved?.id) {
+        if (saved?.id) {
           this.selectedEvent.set({ ...this.eventForm, ...saved });
           this.eventForm = { ...this.eventForm, ...saved };
         }
-
         this.loadEvents();
         this.loadLogs();
         this.isSubmitting.set(false);
       },
-      error: (err) => {
-        this.errorMsg.set(err?.error?.message || 'Erreur de validation ou problème de connexion serveur.');
+      error: () => {
+        this.errorMsg.set('Erreur de validation ou problème de connexion serveur.');
         this.isSubmitting.set(false);
       }
     });
@@ -1285,7 +985,6 @@ export class DashboardComponent implements OnInit {
   onIncidentEventChange(): void {
     this.selectedEvent.set(this.events().find(event => event.id === this.incidentForm.evenement?.id) || null);
     this.onAttenuationTimeChange();
-    this.onUnavailabilityTimeChange();
   }
 
   // --- Automatic Duration Calculations ---
@@ -1333,47 +1032,11 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-  onUnavailabilityTimeChange(): void {
-    const event = this.events().find(e => e.id === this.incidentForm.evenement?.id) || this.selectedEvent();
-    if (!event?.dateHeureDetection) return;
-
-    const closureCandidates = [
-      this.incidentForm.mesureDateCloture && this.incidentForm.mesureHeureCloture
-        ? new Date(`${this.incidentForm.mesureDateCloture}T${this.incidentForm.mesureHeureCloture}`)
-        : null,
-      this.incidentForm.traitementDateCloture && this.incidentForm.traitementHeureCloture
-        ? new Date(`${this.incidentForm.traitementDateCloture}T${this.incidentForm.traitementHeureCloture}`)
-        : null
-    ].filter((value): value is Date => value !== null && !Number.isNaN(value.getTime()));
-
-    if (closureCandidates.length === 0) return;
-
-    const startDt = new Date(event.dateHeureDetection);
-    const endDt = closureCandidates.reduce((earliest, candidate) =>
-      candidate.getTime() < earliest.getTime() ? candidate : earliest
-    );
-    const diffMs = endDt.getTime() - startDt.getTime();
-
-    if (Number.isNaN(diffMs) || diffMs < 0) return;
-
-    const totalMinutes = Math.floor(diffMs / 60000);
-    const days = Math.floor(totalMinutes / 1440);
-    const hours = Math.floor((totalMinutes % 1440) / 60);
-    const minutes = totalMinutes % 60;
-    const parts: string[] = [];
-    if (days > 0) parts.push(`${days}j`);
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
-    this.incidentForm.dureeIndisponibilite = parts.join(' ');
-  }
-
   saveIncident(): void {
     if (!this.incidentForm.evenement?.id) {
       this.errorMsg.set('Selectionnez l evenement rattache a l incident.');
       return;
     }
-
-    this.onUnavailabilityTimeChange();
 
     // If we're closing, ensure traitementEtat matches
     if (this.incidentForm.traitementDateCloture && this.incidentForm.traitementHeureCloture) {

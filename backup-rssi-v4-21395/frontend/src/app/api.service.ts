@@ -155,7 +155,7 @@ export class ApiService {
 
 
   // --- Assistant RSSI local (moteur Python sans API externe) ---
-  runLocalRssiAssistant(payload: { eventId: number; question: string; history?: Array<{ role: 'assistant' | 'user'; text: string }> }): Observable<any> {
+  runLocalRssiAssistant(payload: { eventId: number; question: string }): Observable<any> {
     return this.http.post<any>(
       `${this.baseUrl}/rssi-assistant/analyze`,
       payload,

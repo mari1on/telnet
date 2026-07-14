@@ -153,16 +153,6 @@ export class ApiService {
     return this.http.delete<any>(`${this.baseUrl}/incidents/${id}`, { headers: this.getHeaders() });
   }
 
-
-  // --- Assistant RSSI local (moteur Python sans API externe) ---
-  runLocalRssiAssistant(payload: { eventId: number; question: string; history?: Array<{ role: 'assistant' | 'user'; text: string }> }): Observable<any> {
-    return this.http.post<any>(
-      `${this.baseUrl}/rssi-assistant/analyze`,
-      payload,
-      { headers: this.getHeaders() }
-    );
-  }
-
   // --- Logs ---
   getLogs(): Observable<any[]> {
     return this.http.get<any[]>(`${this.baseUrl}/logs`, { headers: this.getHeaders() });

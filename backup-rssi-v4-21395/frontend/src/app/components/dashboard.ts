@@ -105,7 +105,6 @@ interface AssistantMatch {
   date?: string;
   score: number;
   qualification?: string;
-  reason?: string;
 }
 
 interface AssistantResponse {
@@ -794,16 +793,12 @@ export class DashboardComponent implements OnInit {
     }
 
     this.errorMsg.set('');
-    const history = this.assistantMessages()
-      .slice(-8)
-      .map(message => ({ role: message.role, text: message.text }));
     this.assistantMessages.update(messages => [...messages, { role: 'user', text: question }]);
     this.assistantLoading.set(true);
 
     this.apiService.runLocalRssiAssistant({
       eventId: this.assistantSelectedEventId,
-      question,
-      history
+      question
     }).subscribe({
       next: (result: AssistantResponse) => {
         this.assistantResult.set(result);
@@ -858,22 +853,6 @@ export class DashboardComponent implements OnInit {
     this.incidentForm.evenementsDetailsDescription = this.incidentForm.evenementsDetailsDescription
       || result.matches.map(match => `#EV-${match.eventId} — ${match.title}`).join('\n');
     this.successMsg.set('Les actions confirmées ont été préparées dans le plan d’incident. Vérifiez-les avant de sauvegarder.');
-  }
-
-  cancelAssistantProposal(): void {
-    if (!this.assistantResult()) {
-      return;
-    }
-    this.assistantResult.set(null);
-    this.assistantMessages.update(messages => [
-      ...messages,
-      {
-        role: 'assistant',
-        text: 'Proposition annulée. Aucune action n’a été ajoutée au plan d’incident. Vous pouvez préciser le contexte et poser une nouvelle question.'
-      }
-    ]);
-    this.successMsg.set('Proposition annulée sans modification du plan d’incident.');
-    this.errorMsg.set('');
   }
 
   clearAssistantConversation(): void {
@@ -1005,36 +984,25 @@ export class DashboardComponent implements OnInit {
 
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
-    const wasEditing = Boolean(this.selectedEvent());
 
-    const operation = wasEditing
+    const operation = this.selectedEvent()
       ? this.apiService.updateEvent(this.selectedEvent()!.id!, this.eventForm)
       : this.apiService.createEvent(this.eventForm);
 
     operation.subscribe({
       next: (saved) => {
-        this.successMsg.set(wasEditing
-          ? 'Événement mis à jour avec succès.'
-          : (this.apiService.isRssi()
-              ? 'Événement enregistré avec succès.'
-              : 'Événement enregistré avec succès. Cliquez sur « Envoyer au RSSI » pour notifier le RSSI.'));
+        this.successMsg.set(this.selectedEvent() ? 'Événement mis à jour avec succès.' : 'Événement enregistré avec succès. Cliquez sur « Envoyer au RSSI » pour notifier le RSSI.');
         this.errorMsg.set('');
-
-        if (this.apiService.isRssi()) {
-          this.showEventForm.set(false);
-          this.selectedEvent.set(null);
-          this.eventForm = this.initEventForm();
-        } else if (saved?.id) {
+        if (saved?.id) {
           this.selectedEvent.set({ ...this.eventForm, ...saved });
           this.eventForm = { ...this.eventForm, ...saved };
         }
-
         this.loadEvents();
         this.loadLogs();
         this.isSubmitting.set(false);
       },
-      error: (err) => {
-        this.errorMsg.set(err?.error?.message || 'Erreur de validation ou problème de connexion serveur.');
+      error: () => {
+        this.errorMsg.set('Erreur de validation ou problème de connexion serveur.');
         this.isSubmitting.set(false);
       }
     });
@@ -1285,7 +1253,6 @@ export class DashboardComponent implements OnInit {
   onIncidentEventChange(): void {
     this.selectedEvent.set(this.events().find(event => event.id === this.incidentForm.evenement?.id) || null);
     this.onAttenuationTimeChange();
-    this.onUnavailabilityTimeChange();
   }
 
   // --- Automatic Duration Calculations ---
@@ -1333,47 +1300,11 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-  onUnavailabilityTimeChange(): void {
-    const event = this.events().find(e => e.id === this.incidentForm.evenement?.id) || this.selectedEvent();
-    if (!event?.dateHeureDetection) return;
-
-    const closureCandidates = [
-      this.incidentForm.mesureDateCloture && this.incidentForm.mesureHeureCloture
-        ? new Date(`${this.incidentForm.mesureDateCloture}T${this.incidentForm.mesureHeureCloture}`)
-        : null,
-      this.incidentForm.traitementDateCloture && this.incidentForm.traitementHeureCloture
-        ? new Date(`${this.incidentForm.traitementDateCloture}T${this.incidentForm.traitementHeureCloture}`)
-        : null
-    ].filter((value): value is Date => value !== null && !Number.isNaN(value.getTime()));
-
-    if (closureCandidates.length === 0) return;
-
-    const startDt = new Date(event.dateHeureDetection);
-    const endDt = closureCandidates.reduce((earliest, candidate) =>
-      candidate.getTime() < earliest.getTime() ? candidate : earliest
-    );
-    const diffMs = endDt.getTime() - startDt.getTime();
-
-    if (Number.isNaN(diffMs) || diffMs < 0) return;
-
-    const totalMinutes = Math.floor(diffMs / 60000);
-    const days = Math.floor(totalMinutes / 1440);
-    const hours = Math.floor((totalMinutes % 1440) / 60);
-    const minutes = totalMinutes % 60;
-    const parts: string[] = [];
-    if (days > 0) parts.push(`${days}j`);
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
-    this.incidentForm.dureeIndisponibilite = parts.join(' ');
-  }
-
   saveIncident(): void {
     if (!this.incidentForm.evenement?.id) {
       this.errorMsg.set('Selectionnez l evenement rattache a l incident.');
       return;
     }
-
-    this.onUnavailabilityTimeChange();
 
     // If we're closing, ensure traitementEtat matches
     if (this.incidentForm.traitementDateCloture && this.incidentForm.traitementHeureCloture) {

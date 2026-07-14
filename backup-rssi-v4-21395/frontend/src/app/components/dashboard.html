@@ -32,7 +32,7 @@
 
       <button type="button" class="sidebar-link" [class.active]="activeTab() === 'assistant'" (click)="openAssistant()">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10h8M8 14h5M7 3h10a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4h-5l-5 3v-3a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Z" /><path d="M9 7.5h.01M15 7.5h.01" /></svg>
-        <span>Assistant RSSI</span>
+        <span>Assistant RSSI <small>(Python local)</small></span>
       </button>
 
       <button type="button" class="sidebar-link" [class.active]="activeTab() === 'settings'" (click)="openSettings()">
@@ -151,6 +151,16 @@
           <strong>{{ getIncidentsImpactCritiqueIntegrite() }}</strong>
           <small>incidents concernés</small>
         </article>
+        <article class="metric-card metric-time">
+          <span class="metric-label">Temps moyen d’exécution</span>
+          <strong>{{ getTempsMoyenTraitement() }}</strong>
+          <small>durée moyenne de traitement</small>
+        </article>
+        <article class="metric-card metric-time">
+          <span class="metric-label">Temps moyen d’indisponibilité</span>
+          <strong>{{ getTempsMoyenIndisponibilite() }}</strong>
+          <small>sur les incidents renseignés</small>
+        </article>
       </section>
 
       <section class="analytics-grid">
@@ -200,6 +210,23 @@
                   <div><i [class]="'legend-dot dot-' + index"></i><span>{{ item.etat }} ({{ item.count }})</span></div>
                 }
               </div>
+            </div>
+          } @else {
+            <p class="panel-empty">Aucune donnée</p>
+          }
+        </article>
+
+        <article class="dashboard-panel nature-panel">
+          <h2>Événements par Nature</h2>
+          @if (getEventsByNature().length > 0) {
+            <div class="nature-list">
+              @for (item of getEventsByNature(); track item.nature) {
+                <div class="nature-row" [title]="item.nature + ' : ' + item.count">
+                  <span>{{ item.nature }}</span>
+                  <div class="track"><i [style.width.%]="getNatureBarWidth(item.count)"></i></div>
+                  <strong>{{ item.count }}</strong>
+                </div>
+              }
             </div>
           } @else {
             <p class="panel-empty">Aucune donnée</p>
@@ -289,7 +316,7 @@
           <option value="INCIDENT">Incident</option>
           <option value="NON_INCIDENT">Classé sans suite</option>
         </select>
-        <button type="button" class="filter-reset icon-reset" (click)="resetEventFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
+        <button type="button" class="filter-reset" (click)="resetEventFilters()">Réinitialiser</button>
         <span class="result-count">{{ getFilteredEvents().length }} résultat(s)</span>
       </div>
 
@@ -411,7 +438,7 @@
           <option value="Clôturé">Clôturé</option>
           <option value="Suspendu">Suspendu</option>
         </select>
-        <button type="button" class="filter-reset icon-reset" (click)="resetIncidentFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
+        <button type="button" class="filter-reset" (click)="resetIncidentFilters()">Réinitialiser</button>
         <span class="result-count">{{ getFilteredIncidents().length }} résultat(s)</span>
       </div>
 
@@ -498,7 +525,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="logSearch" placeholder="Rechercher un utilisateur ou une action..." />
         </label>
-        <button type="button" class="filter-reset icon-reset" (click)="resetLogFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
+        <button type="button" class="filter-reset" (click)="resetLogFilters()">Réinitialiser</button>
         <span class="result-count">{{ getFilteredLogs().length }} résultat(s)</span>
       </div>
 
@@ -609,7 +636,6 @@
                     <div>
                       <strong>#EV-{{ match.eventId }} — {{ match.title }}</strong>
                       <span>Similarité {{ match.score }} % · {{ match.qualification || 'Non qualifié' }}</span>
-                      @if (match.reason) { <small>{{ match.reason }}</small> }
                     </div>
                   }
                 </div>
@@ -622,14 +648,9 @@
                 }
               </ol>
 
-              <div class="assistant-proposal-actions">
-                <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">
-                  Annuler
-                </button>
-                <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()">
-                  Confirmer et préparer le plan d’incident
-                </button>
-              </div>
+              <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()">
+                Confirmer et préparer le plan d’incident
+              </button>
             </div>
           }
 
@@ -641,7 +662,7 @@
               placeholder="Exemple : cet échec d’authentification a-t-il déjà été rencontré et quelles actions ont fonctionné ?"
             ></textarea>
             <button type="submit" [disabled]="assistantLoading() || !assistantSelectedEventId">
-              {{ assistantLoading() ? '...' : 'Entrer' }}
+              {{ assistantLoading() ? 'Analyse…' : 'Analyser' }}
             </button>
           </form>
         </section>
@@ -988,7 +1009,7 @@
       <div class="detector-list-toolbar" aria-label="Recherche et filtres des déclarations">
         <label class="detector-search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
-          <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher un événement..." />
+          <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher dans mes déclarations..." />
         </label>
         <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
           <option value="ALL">Tous les états</option>
@@ -1007,6 +1028,7 @@
           <option value="SENT">Envoyés</option>
           <option value="NOT_SENT">Non envoyés</option>
         </select>
+        <button type="button" class="detector-filter-reset" (click)="resetEventFilters()">Effacer</button>
         <span>{{ getFilteredEvents().length }} résultat(s)</span>
       </div>
 
@@ -1541,25 +1563,12 @@
             </div>
             <div class="form-group">
               <label for="mesureDateCloture">Date clôture</label>
-              <input type="date" id="mesureDateCloture" name="mesureDateCloture" class="form-control" [(ngModel)]="incidentForm.mesureDateCloture" (ngModelChange)="onAttenuationTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="date" id="mesureDateCloture" name="mesureDateCloture" class="form-control" [(ngModel)]="incidentForm.mesureDateCloture" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
             <div class="form-group">
               <label for="mesureHeureCloture">Heure clôture</label>
-              <input type="time" id="mesureHeureCloture" name="mesureHeureCloture" class="form-control" [(ngModel)]="incidentForm.mesureHeureCloture" (ngModelChange)="onAttenuationTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="time" id="mesureHeureCloture" name="mesureHeureCloture" class="form-control" [(ngModel)]="incidentForm.mesureHeureCloture" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
-            <div class="form-group col-span-2">
-              <label for="dureeIndisponibilite">Durée d'indisponibilité</label>
-              <input
-                type="text"
-                id="dureeIndisponibilite"
-                name="dureeIndisponibilite"
-                class="form-control"
-                [(ngModel)]="incidentForm.dureeIndisponibilite"
-                placeholder="Ex : 2h 30m (calcul automatique ou saisie manuelle)"
-              />
-              <small class="field-help">Calculée entre la détection et la première clôture renseignée. La valeur reste modifiable.</small>
-            </div>
-
             <div class="form-group col-span-2">
               <label for="dureeAttenuation">Durée d'atténuation</label>
               <input type="text" id="dureeAttenuation" name="dureeAttenuation" class="form-control" [(ngModel)]="incidentForm.dureeAttenuation" placeholder="Auto-calculé ou modifiable" />
@@ -1602,11 +1611,11 @@
             </div>
             <div class="form-group">
               <label for="traitementDateCloture">Date clôture</label>
-              <input type="date" id="traitementDateCloture" name="traitementDateCloture" class="form-control" [(ngModel)]="incidentForm.traitementDateCloture" (ngModelChange)="onTreatmentTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="date" id="traitementDateCloture" name="traitementDateCloture" class="form-control" [(ngModel)]="incidentForm.traitementDateCloture" (ngModelChange)="onTreatmentTimeChange()" />
             </div>
             <div class="form-group">
               <label for="traitementHeureCloture">Heure clôture</label>
-              <input type="time" id="traitementHeureCloture" name="traitementHeureCloture" class="form-control" [(ngModel)]="incidentForm.traitementHeureCloture" (ngModelChange)="onTreatmentTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="time" id="traitementHeureCloture" name="traitementHeureCloture" class="form-control" [(ngModel)]="incidentForm.traitementHeureCloture" (ngModelChange)="onTreatmentTimeChange()" />
             </div>
             <div class="form-group col-span-2">
               <label for="heureTraitement">Heure de traitement</label>

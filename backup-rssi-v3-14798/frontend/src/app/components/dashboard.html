@@ -30,11 +30,6 @@
         </button>
       }
 
-      <button type="button" class="sidebar-link" [class.active]="activeTab() === 'assistant'" (click)="openAssistant()">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10h8M8 14h5M7 3h10a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4h-5l-5 3v-3a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Z" /><path d="M9 7.5h.01M15 7.5h.01" /></svg>
-        <span>Assistant RSSI</span>
-      </button>
-
       <button type="button" class="sidebar-link" [class.active]="activeTab() === 'settings'" (click)="openSettings()">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></svg>
         <span>Settings</span>
@@ -89,7 +84,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
             Notifications
           </button>
-          <button type="button" class="action-chip" title="Ouvrir l’assistant RSSI local" (click)="openAssistant()">
+          <button type="button" class="action-chip" title="Bouton d'interface — aucun service chatbot n'est configuré">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M12 3v3M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Zm3 5h.01M16 13h.01M8 17h8" /></svg>
             Chatbot IA
           </button>
@@ -127,29 +122,6 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z" /></svg>
           </div>
           <div><p>Risques Touchés</p><strong>{{ getRisquesTouchesCount() }}</strong></div>
-        </article>
-      </section>
-
-      <section class="advanced-kpi-grid" aria-label="Indicateurs avancés de sécurité">
-        <article class="metric-card metric-blue">
-          <span class="metric-label">Événements classés</span>
-          <strong>{{ getEvenementsClasses() }}</strong>
-          <small>{{ getEvenementsClassesPercent() }} % du total</small>
-        </article>
-        <article class="metric-card metric-critical">
-          <span class="metric-label">Critique — Confidentialité</span>
-          <strong>{{ getIncidentsImpactCritiqueConfidentialite() }}</strong>
-          <small>incidents concernés</small>
-        </article>
-        <article class="metric-card metric-critical">
-          <span class="metric-label">Critique — Disponibilité</span>
-          <strong>{{ getIncidentsImpactCritiqueDisponibilite() }}</strong>
-          <small>incidents concernés</small>
-        </article>
-        <article class="metric-card metric-critical">
-          <span class="metric-label">Critique — Intégrité</span>
-          <strong>{{ getIncidentsImpactCritiqueIntegrite() }}</strong>
-          <small>incidents concernés</small>
         </article>
       </section>
 
@@ -206,32 +178,21 @@
           }
         </article>
 
-        <article class="dashboard-panel critical-impact-panel">
-          <h2>Répartition des impacts critiques</h2>
-          <div class="critical-impact-list">
-            @for (item of getCriticalImpactStats(); track item.key) {
-              <div class="critical-impact-row">
-                <div class="critical-impact-head">
-                  <span>{{ item.label }}</span>
+        <article class="dashboard-panel nature-panel">
+          <h2>Événements par Nature</h2>
+          @if (getEventsByNature().length > 0) {
+            <div class="nature-list">
+              @for (item of getEventsByNature(); track item.nature) {
+                <div class="nature-row" [title]="item.nature + ' : ' + item.count">
+                  <span>{{ item.nature }}</span>
+                  <div class="track"><i [style.width.%]="getNatureBarWidth(item.count)"></i></div>
                   <strong>{{ item.count }}</strong>
                 </div>
-                <div class="critical-impact-track">
-                  <i [style.width.%]="getCriticalImpactBarWidth(item.count)"></i>
-                </div>
-              </div>
-            }
-          </div>
-        </article>
-
-        <article class="dashboard-panel classification-panel">
-          <h2>Taux de classification</h2>
-          <div class="classification-gauge" [style.--classification]="getEvenementsClassesPercent() + '%'">
-            <div>
-              <strong>{{ getEvenementsClassesPercent() }}%</strong>
-              <span>{{ getEvenementsClasses() }} / {{ events().length }} événements</span>
+              }
             </div>
-          </div>
-          <p class="classification-note">Événements qualifiés comme incident ou classés sans suite.</p>
+          } @else {
+            <p class="panel-empty">Aucune donnée</p>
+          }
         </article>
 
         <article class="dashboard-panel risk-panel">
@@ -272,27 +233,6 @@
           </button>
         </div>
 
-      <div class="list-toolbar" aria-label="Recherche et filtres des événements">
-        <label class="search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
-          <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher par nom, source, ticket, service..." />
-        </label>
-        <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
-          <option value="ALL">Tous les états</option>
-          <option value="Ouvert">Ouvert</option>
-          <option value="En cours">En cours</option>
-          <option value="Clos">Clos</option>
-        </select>
-        <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
-          <option value="ALL">Toutes les qualifications</option>
-          <option value="NON_QUALIFIE">En attente</option>
-          <option value="INCIDENT">Incident</option>
-          <option value="NON_INCIDENT">Classé sans suite</option>
-        </select>
-        <button type="button" class="filter-reset icon-reset" (click)="resetEventFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
-        <span class="result-count">{{ getFilteredEvents().length }} résultat(s)</span>
-      </div>
-
       <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
         <table class="table-premium">
           <thead>
@@ -308,7 +248,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (event of getFilteredEvents(); track event.id) {
+            @for (event of events(); track event.id) {
               <tr>
                 <td><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
                 <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
@@ -400,21 +340,6 @@
         </div>
       </div>
 
-      <div class="list-toolbar" aria-label="Recherche et filtres des incidents">
-        <label class="search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
-          <input type="search" [(ngModel)]="incidentSearch" placeholder="Rechercher un incident, événement ou responsable..." />
-        </label>
-        <select [(ngModel)]="incidentStateFilter" aria-label="Filtrer par état du traitement">
-          <option value="ALL">Tous les traitements</option>
-          <option value="En cours">En cours</option>
-          <option value="Clôturé">Clôturé</option>
-          <option value="Suspendu">Suspendu</option>
-        </select>
-        <button type="button" class="filter-reset icon-reset" (click)="resetIncidentFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
-        <span class="result-count">{{ getFilteredIncidents().length }} résultat(s)</span>
-      </div>
-
       <div class="table-container">
         <table class="table-premium">
           <thead>
@@ -431,7 +356,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (inc of getFilteredIncidents(); track inc.id) {
+            @for (inc of incidents(); track inc.id) {
               <tr>
                 <td><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
                 <td><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
@@ -493,15 +418,6 @@
         </button>
       </div>
 
-      <div class="list-toolbar compact-toolbar" aria-label="Recherche dans le journal d’audit">
-        <label class="search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
-          <input type="search" [(ngModel)]="logSearch" placeholder="Rechercher un utilisateur ou une action..." />
-        </label>
-        <button type="button" class="filter-reset icon-reset" (click)="resetLogFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
-        <span class="result-count">{{ getFilteredLogs().length }} résultat(s)</span>
-      </div>
-
       <div class="table-container">
         <table class="table-premium">
           <thead>
@@ -512,7 +428,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (log of getFilteredLogs(); track log.id) {
+            @for (log of logs(); track log.id) {
               <tr>
                 <td class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
                 <td>
@@ -534,120 +450,6 @@
     </div>
   }
 
-
-  <!-- TAB 4: ASSISTANT RSSI LOCAL -->
-  @if (activeTab() === 'assistant' && apiService.isRssi()) {
-    <div class="tab-view assistant-view">
-      <div class="assistant-page-heading">
-        <div>
-          <span class="eyebrow">Analyse basée sur l’historique TELNET</span>
-          <h1 class="view-title">Assistant RSSI</h1>
-          <p>Le moteur Python local compare l’événement sélectionné aux cas déjà enregistrés. Aucune donnée n’est envoyée à un service d’IA externe.</p>
-        </div>
-        <button type="button" class="filter-reset" (click)="clearAssistantConversation()">Nouvelle conversation</button>
-      </div>
-
-      <section class="assistant-layout">
-        <aside class="assistant-context-card">
-          <h2>Contexte à analyser</h2>
-          <label for="assistantEvent">Événement</label>
-          <select id="assistantEvent" [(ngModel)]="assistantSelectedEventId">
-            <option [ngValue]="null">Sélectionner un événement</option>
-            @for (event of events(); track event.id) {
-              <option [ngValue]="event.id">#EV-{{ event.id }} — {{ event.libelleErreur || 'Sans nom' }}</option>
-            }
-          </select>
-
-          @if (assistantSelectedEventId) {
-            @for (event of events(); track event.id) {
-              @if (event.id === assistantSelectedEventId) {
-                <div class="assistant-event-summary">
-                  <strong>{{ event.libelleErreur || 'Sans nom' }}</strong>
-                  <span>{{ event.natureEvenement || 'Nature non définie' }}</span>
-                  <span>{{ event.serviceOsAppli || 'Service non défini' }}</span>
-                  <span>Qualification : {{ event.qualification || 'NON_QUALIFIE' }}</span>
-                </div>
-              }
-            }
-          }
-
-          <div class="assistant-local-note">
-            <strong>Fonctionnement local</strong>
-            <p>Recherche de similarité, historique des plans d’incident et règles métier. Aucun appel OpenAI, Gemini ou autre API externe.</p>
-          </div>
-        </aside>
-
-        <section class="assistant-chat-card">
-          <div class="assistant-messages" aria-live="polite">
-            @for (message of assistantMessages(); track $index) {
-              <article class="chat-bubble" [class.user-bubble]="message.role === 'user'" [class.assistant-bubble]="message.role === 'assistant'">
-                <span>{{ message.role === 'assistant' ? 'Assistant RSSI' : 'Vous' }}</span>
-                <p>{{ message.text }}</p>
-              </article>
-            }
-            @if (assistantLoading()) {
-              <article class="chat-bubble assistant-bubble loading-bubble">
-                <span>Assistant RSSI</span>
-                <p>Analyse de l’historique en cours…</p>
-              </article>
-            }
-          </div>
-
-          @if (assistantResult(); as result) {
-            <div class="assistant-result-card">
-              <div class="assistant-result-heading">
-                <div>
-                  <span>{{ result.similarFound ? 'Cas similaires trouvés' : 'Aucun cas suffisamment similaire' }}</span>
-                  <strong>{{ result.matches.length }} correspondance(s)</strong>
-                </div>
-                <small>{{ result.source }}</small>
-              </div>
-
-              @if (result.matches.length > 0) {
-                <div class="assistant-matches">
-                  @for (match of result.matches; track match.eventId) {
-                    <div>
-                      <strong>#EV-{{ match.eventId }} — {{ match.title }}</strong>
-                      <span>Similarité {{ match.score }} % · {{ match.qualification || 'Non qualifié' }}</span>
-                      @if (match.reason) { <small>{{ match.reason }}</small> }
-                    </div>
-                  }
-                </div>
-              }
-
-              <h3>Actions proposées</h3>
-              <ol>
-                @for (action of result.actions; track action) {
-                  <li>{{ action }}</li>
-                }
-              </ol>
-
-              <div class="assistant-proposal-actions">
-                <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">
-                  Annuler
-                </button>
-                <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()">
-                  Confirmer et préparer le plan d’incident
-                </button>
-              </div>
-            </div>
-          }
-
-          <form class="assistant-composer" (ngSubmit)="sendAssistantMessage()">
-            <textarea
-              name="assistantQuestion"
-              [(ngModel)]="assistantQuestion"
-              rows="3"
-              placeholder="Exemple : cet échec d’authentification a-t-il déjà été rencontré et quelles actions ont fonctionné ?"
-            ></textarea>
-            <button type="submit" [disabled]="assistantLoading() || !assistantSelectedEventId">
-              {{ assistantLoading() ? '...' : 'Entrer' }}
-            </button>
-          </form>
-        </section>
-      </section>
-    </div>
-  }
 
   <!-- TAB 4: ACCOUNT SETTINGS (RSSI ONLY) -->
   @if (activeTab() === 'settings') {
@@ -788,7 +590,7 @@
     }
     <button class="nav-tab-btn" [class.active]="activeTab() === 'events'" (click)="switchTab('events')">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-      Mes Déclarations
+      Événements
     </button>
     @if (apiService.isRssi()) {
       <button class="nav-tab-btn" [class.active]="activeTab() === 'incidents'" (click)="switchTab('incidents')">
@@ -985,31 +787,6 @@
           </button>
         </div>
 
-      <div class="detector-list-toolbar" aria-label="Recherche et filtres des déclarations">
-        <label class="detector-search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
-          <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher un événement..." />
-        </label>
-        <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
-          <option value="ALL">Tous les états</option>
-          <option value="Ouvert">Ouvert</option>
-          <option value="En cours">En cours</option>
-          <option value="Clos">Clos</option>
-        </select>
-        <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
-          <option value="ALL">Toutes les qualifications</option>
-          <option value="NON_QUALIFIE">En attente</option>
-          <option value="INCIDENT">Incident</option>
-          <option value="NON_INCIDENT">Classé sans suite</option>
-        </select>
-        <select [(ngModel)]="eventRssiFilter" aria-label="Filtrer par envoi RSSI">
-          <option value="ALL">Tous les envois</option>
-          <option value="SENT">Envoyés</option>
-          <option value="NOT_SENT">Non envoyés</option>
-        </select>
-        <span>{{ getFilteredEvents().length }} résultat(s)</span>
-      </div>
-
       <div class="table-container detector-events-container">
         <table class="table-premium detector-events-table">
           <thead>
@@ -1026,7 +803,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (event of getFilteredEvents(); track event.id) {
+            @for (event of events(); track event.id) {
               <tr>
                 <td><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
                 <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
@@ -1142,7 +919,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (inc of getFilteredIncidents(); track inc.id) {
+            @for (inc of incidents(); track inc.id) {
               <tr>
                 <td><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
                 <td><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
@@ -1214,7 +991,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (log of getFilteredLogs(); track log.id) {
+            @for (log of logs(); track log.id) {
               <tr>
                 <td class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
                 <td>
@@ -1541,25 +1318,12 @@
             </div>
             <div class="form-group">
               <label for="mesureDateCloture">Date clôture</label>
-              <input type="date" id="mesureDateCloture" name="mesureDateCloture" class="form-control" [(ngModel)]="incidentForm.mesureDateCloture" (ngModelChange)="onAttenuationTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="date" id="mesureDateCloture" name="mesureDateCloture" class="form-control" [(ngModel)]="incidentForm.mesureDateCloture" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
             <div class="form-group">
               <label for="mesureHeureCloture">Heure clôture</label>
-              <input type="time" id="mesureHeureCloture" name="mesureHeureCloture" class="form-control" [(ngModel)]="incidentForm.mesureHeureCloture" (ngModelChange)="onAttenuationTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="time" id="mesureHeureCloture" name="mesureHeureCloture" class="form-control" [(ngModel)]="incidentForm.mesureHeureCloture" (ngModelChange)="onAttenuationTimeChange()" />
             </div>
-            <div class="form-group col-span-2">
-              <label for="dureeIndisponibilite">Durée d'indisponibilité</label>
-              <input
-                type="text"
-                id="dureeIndisponibilite"
-                name="dureeIndisponibilite"
-                class="form-control"
-                [(ngModel)]="incidentForm.dureeIndisponibilite"
-                placeholder="Ex : 2h 30m (calcul automatique ou saisie manuelle)"
-              />
-              <small class="field-help">Calculée entre la détection et la première clôture renseignée. La valeur reste modifiable.</small>
-            </div>
-
             <div class="form-group col-span-2">
               <label for="dureeAttenuation">Durée d'atténuation</label>
               <input type="text" id="dureeAttenuation" name="dureeAttenuation" class="form-control" [(ngModel)]="incidentForm.dureeAttenuation" placeholder="Auto-calculé ou modifiable" />
@@ -1602,11 +1366,11 @@
             </div>
             <div class="form-group">
               <label for="traitementDateCloture">Date clôture</label>
-              <input type="date" id="traitementDateCloture" name="traitementDateCloture" class="form-control" [(ngModel)]="incidentForm.traitementDateCloture" (ngModelChange)="onTreatmentTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="date" id="traitementDateCloture" name="traitementDateCloture" class="form-control" [(ngModel)]="incidentForm.traitementDateCloture" (ngModelChange)="onTreatmentTimeChange()" />
             </div>
             <div class="form-group">
               <label for="traitementHeureCloture">Heure clôture</label>
-              <input type="time" id="traitementHeureCloture" name="traitementHeureCloture" class="form-control" [(ngModel)]="incidentForm.traitementHeureCloture" (ngModelChange)="onTreatmentTimeChange(); onUnavailabilityTimeChange()" />
+              <input type="time" id="traitementHeureCloture" name="traitementHeureCloture" class="form-control" [(ngModel)]="incidentForm.traitementHeureCloture" (ngModelChange)="onTreatmentTimeChange()" />
             </div>
             <div class="form-group col-span-2">
               <label for="heureTraitement">Heure de traitement</label>
