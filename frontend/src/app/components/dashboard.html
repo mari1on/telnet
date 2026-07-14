@@ -131,25 +131,23 @@
       </section>
 
       <section class="advanced-kpi-grid" aria-label="Indicateurs avancés de sécurité">
-        <article class="metric-card metric-blue">
-          <span class="metric-label">Événements classés</span>
-          <strong>{{ getEvenementsClasses() }}</strong>
-          <small>{{ getEvenementsClassesPercent() }} % du total</small>
+        <article class="kpi-card advanced-kpi-card">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7" /><path d="m17 16 2 2 4-5" /></svg>
+          </div>
+          <div><p>Événements classés</p><strong>{{ getEvenementsClasses() }}</strong><small>{{ getEvenementsClassesPercent() }} % du total</small></div>
         </article>
-        <article class="metric-card metric-critical">
-          <span class="metric-label">Critique — Confidentialité</span>
-          <strong>{{ getIncidentsImpactCritiqueConfidentialite() }}</strong>
-          <small>incidents concernés</small>
+        <article class="kpi-card advanced-kpi-card critical-kpi-card">
+          <div class="kpi-icon critical-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" /></svg></div>
+          <div><p>Critique — Confidentialité</p><strong>{{ getIncidentsImpactCritiqueConfidentialite() }}</strong><small>incidents concernés</small></div>
         </article>
-        <article class="metric-card metric-critical">
-          <span class="metric-label">Critique — Disponibilité</span>
-          <strong>{{ getIncidentsImpactCritiqueDisponibilite() }}</strong>
-          <small>incidents concernés</small>
+        <article class="kpi-card advanced-kpi-card critical-kpi-card">
+          <div class="kpi-icon critical-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" /></svg></div>
+          <div><p>Critique — Disponibilité</p><strong>{{ getIncidentsImpactCritiqueDisponibilite() }}</strong><small>incidents concernés</small></div>
         </article>
-        <article class="metric-card metric-critical">
-          <span class="metric-label">Critique — Intégrité</span>
-          <strong>{{ getIncidentsImpactCritiqueIntegrite() }}</strong>
-          <small>incidents concernés</small>
+        <article class="kpi-card advanced-kpi-card critical-kpi-card">
+          <div class="kpi-icon critical-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" /></svg></div>
+          <div><p>Critique — Intégrité</p><strong>{{ getIncidentsImpactCritiqueIntegrite() }}</strong><small>incidents concernés</small></div>
         </article>
       </section>
 
@@ -263,7 +261,6 @@
     <div class="tab-view">
       <div class="tab-header d-flex justify-between align-center">
         <div>
-          <h1 class="view-title">{{ apiService.isRssi() ? 'Tous les Événements' : 'Mes Déclarations' }}</h1>
 
         </div>
         <button class="btn btn-primary" (click)="openCreateEvent()">
@@ -276,6 +273,7 @@
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher par nom, source, ticket, service..." />
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
         </label>
         <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
           <option value="ALL">Tous les états</option>
@@ -284,7 +282,7 @@
           <option value="Clos">Clos</option>
         </select>
         <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
-          <option value="ALL">Toutes les qualifications</option>
+          <option value="ALL">Qualification</option>
           <option value="NON_QUALIFIE">En attente</option>
           <option value="INCIDENT">Incident</option>
           <option value="NON_INCIDENT">Classé sans suite</option>
@@ -404,6 +402,7 @@
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="incidentSearch" placeholder="Rechercher un incident, événement ou responsable..." />
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'incidents'" (click)="startSearchVoice('incidents')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
         </label>
         <select [(ngModel)]="incidentStateFilter" aria-label="Filtrer par état du traitement">
           <option value="ALL">Tous les traitements</option>
@@ -411,7 +410,7 @@
           <option value="Clôturé">Clôturé</option>
           <option value="Suspendu">Suspendu</option>
         </select>
-        <button type="button" class="filter-reset icon-reset" (click)="resetIncidentFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
+        <button type="button" class="filter-reset text-reset" (click)="resetIncidentFilters()">Réinitialiser</button>
         <span class="result-count">{{ getFilteredIncidents().length }} résultat(s)</span>
       </div>
 
@@ -438,7 +437,7 @@
                 <td><span class="badge badge-info">{{ inc.evenement?.natureEvenement || 'Non spécifié' }}</span></td>
                 <td>{{ inc.evenement?.dateHeureDetection ? (inc.evenement!.dateHeureDetection | date:'dd/MM/yyyy HH:mm') : 'Non spécifiée' }}</td>
                 <td><span class="badge" [class.badge-success]="inc.evenement?.etat === 'Clos'">{{ inc.evenement?.etat || 'Non spécifié' }}</span></td>
-                <td>{{ inc.dureeIndisponibilite || '-' }}</td>
+                <td>{{ getIncidentDowntimeDisplay(inc) }}</td>
                 <td>{{ inc.dureeTraitement || '-' }}</td>
                 <td>
                   @if (inc.mesureDDT) {
@@ -497,8 +496,9 @@
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="logSearch" placeholder="Rechercher un utilisateur ou une action..." />
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'logs'" (click)="startSearchVoice('logs')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
         </label>
-        <button type="button" class="filter-reset icon-reset" (click)="resetLogFilters()" title="Réinitialiser les filtres" aria-label="Réinitialiser les filtres">↺</button>
+        <button type="button" class="filter-reset text-reset" (click)="applyLogSearch()">Entrer</button>
         <span class="result-count">{{ getFilteredLogs().length }} résultat(s)</span>
       </div>
 
@@ -540,9 +540,9 @@
     <div class="tab-view assistant-view">
       <div class="assistant-page-heading">
         <div>
-          <span class="eyebrow">Analyse basée sur l’historique TELNET</span>
+          <span class="eyebrow">Analyse intelligente des événements, incidents et risques</span>
           <h1 class="view-title">Assistant RSSI</h1>
-          <p>Le moteur Python local compare l’événement sélectionné aux cas déjà enregistrés. Aucune donnée n’est envoyée à un service d’IA externe.</p>
+          <p>Posez une question sur l’événement, ses risques, les cas similaires, les actions recommandées ou le plan d’incident.</p>
         </div>
         <button type="button" class="filter-reset" (click)="clearAssistantConversation()">Nouvelle conversation</button>
       </div>
@@ -571,10 +571,7 @@
             }
           }
 
-          <div class="assistant-local-note">
-            <strong>Fonctionnement local</strong>
-            <p>Recherche de similarité, historique des plans d’incident et règles métier. Aucun appel OpenAI, Gemini ou autre API externe.</p>
-          </div>
+
         </aside>
 
         <section class="assistant-chat-card">
@@ -634,15 +631,11 @@
           }
 
           <form class="assistant-composer" (ngSubmit)="sendAssistantMessage()">
-            <textarea
-              name="assistantQuestion"
-              [(ngModel)]="assistantQuestion"
-              rows="3"
-              placeholder="Exemple : cet échec d’authentification a-t-il déjà été rencontré et quelles actions ont fonctionné ?"
-            ></textarea>
-            <button type="submit" [disabled]="assistantLoading() || !assistantSelectedEventId">
-              {{ assistantLoading() ? '...' : 'Entrer' }}
-            </button>
+            <div class="assistant-input-wrap">
+              <textarea name="assistantQuestion" [(ngModel)]="assistantQuestion" rows="3" placeholder="Exemple : explique cet événement, quels risques présente-t-il et quelle approche suivre ?"></textarea>
+              <button type="button" class="assistant-voice-button" [class.listening]="activeVoiceSearch() === 'assistant'" (click)="startSearchVoice('assistant')" title="Dicter la question">🎙</button>
+            </div>
+            <button type="submit" [disabled]="assistantLoading() || !assistantSelectedEventId">{{ assistantLoading() ? '...' : 'Entrer' }}</button>
           </form>
         </section>
       </section>
@@ -975,10 +968,7 @@
   @if (activeTab() === 'events') {
     <div class="tab-view">
       <div class="tab-header d-flex justify-between align-center">
-        <div>
-          <h1 class="view-title">{{ apiService.isRssi() ? 'Tous les Événements' : 'Mes Déclarations' }}</h1>
-
-        </div>
+        <div class="detector-heading-spacer" aria-hidden="true"></div>
         <button class="btn btn-primary" (click)="openCreateEvent()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             Déclarer un problème
@@ -989,6 +979,7 @@
         <label class="detector-search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher un événement..." />
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
         </label>
         <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
           <option value="ALL">Tous les états</option>
@@ -997,7 +988,7 @@
           <option value="Clos">Clos</option>
         </select>
         <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
-          <option value="ALL">Toutes les qualifications</option>
+          <option value="ALL">Qualification</option>
           <option value="NON_QUALIFIE">En attente</option>
           <option value="INCIDENT">Incident</option>
           <option value="NON_INCIDENT">Classé sans suite</option>
@@ -1255,7 +1246,7 @@
               <label for="descriptionDetaillee" style="display:flex; justify-content:space-between;">
                 <span>Description détaillée *</span>
                 <div style="display:flex; gap:0.5rem;">
-                  <button type="button" class="btn-icon" (click)="magicFill('descriptionDetaillee', 'event')" title="Générer automatiquement avec l'IA ✨">
+                  <button type="button" class="btn-icon" (click)="magicFill('descriptionDetaillee', 'event')" title="Développer les mots saisis en un paragraphe">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
                   </button>
                   <button type="button" class="btn-icon" [class.mic-recording]="isDictating['descriptionDetaillee']" (click)="startDictation('event', 'descriptionDetaillee')" title="Dicter avec la voix">
@@ -1284,8 +1275,8 @@
             </div>
 
             <div class="form-group">
-              <label for="idTicket">ID Ticket (Helpdesk)</label>
-              <input type="text" id="idTicket" name="idTicket" class="form-control" [(ngModel)]="eventForm.idTicket" placeholder="Ex: GLPI-4091" />
+              <label for="idTicket">ID Ticket (généré automatiquement)</label>
+              <input type="text" id="idTicket" name="idTicket" class="form-control auto-id-field" [(ngModel)]="eventForm.idTicket" readonly />
             </div>
             <div class="form-group">
   <label for="serviceOsAppli">Serveur / OS / API</label>
@@ -1322,14 +1313,8 @@
 </div>
 
 <div class="form-group">
-  <label for="codeErreur">Code erreur</label>
-  <input
-      type="text"
-      id="codeErreur"
-      name="codeErreur"
-      class="form-control"
-      [(ngModel)]="eventForm.codeErreur"
-      placeholder="Ex : ERR-500, HTTP-404, ORA-12541" />
+  <label for="codeErreur">Code erreur (généré automatiquement)</label>
+  <input type="text" id="codeErreur" name="codeErreur" class="form-control auto-id-field" [(ngModel)]="eventForm.codeErreur" readonly />
 </div>
 
 
@@ -1557,7 +1542,7 @@
                 [(ngModel)]="incidentForm.dureeIndisponibilite"
                 placeholder="Ex : 2h 30m (calcul automatique ou saisie manuelle)"
               />
-              <small class="field-help">Calculée entre la détection et la première clôture renseignée. La valeur reste modifiable.</small>
+              <small class="field-help">Calculée automatiquement depuis la détection. Sans clôture, la durée est calculée jusqu’à maintenant et actualisée à la sauvegarde.</small>
             </div>
 
             <div class="form-group col-span-2">
@@ -1736,46 +1721,33 @@
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <label style="margin: 0;">Liste des risques</label>
-                <button type="button" class="btn btn-secondary btn-sm" (click)="addRisque()">+ Ajouter un risque</button>
+              <div class="risk-catalog-toolbar">
+                <div class="risk-catalog-select">
+                  <label for="existingRiskSelection">Sélectionner un risque existant</label>
+                  <select id="existingRiskSelection" name="existingRiskSelection" class="form-control" [(ngModel)]="selectedExistingRiskReference">
+                    <option value="">Choisir par ID et description</option>
+                    @for (existingRisk of getExistingRiskCatalog(); track existingRisk.reference) {
+                      <option [value]="existingRisk.reference" [title]="existingRisk.description || ''">{{ getRiskOptionLabel(existingRisk) }}</option>
+                    }
+                  </select>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="addExistingRiskFromCatalog()">Ajouter la sélection</button>
+                <button type="button" class="btn btn-primary btn-sm" (click)="addRisque()">+ Nouveau risque</button>
               </div>
-              
-             @for (risque of incidentForm.risques; track $index; let i = $index) {
 
-<div class="risk-card">
-
-  <div class="form-group">
-    <label>Référence du risque (ID)</label>
-    <input
-      type="text"
-      class="form-control"
-      [(ngModel)]="risque.reference"
-      name="reference{{ i }}"
-      placeholder="Ex : RSK-001 (facultatif)">
-  </div>
-
-  <div class="form-group">
-    <label>Libellé / Description du risque</label>
-    <textarea
-      class="form-control"
-      rows="2"
-      [(ngModel)]="risque.description"
-      name="description{{ i }}"
-      placeholder="Décrire le risque (facultatif)">
-    </textarea>
-  </div>
-
-  <button
-    type="button"
-    class="btn btn-danger"
-    (click)="removeRisque(i)">
-    Supprimer
-  </button>
-
-</div>
-
-}
+              @for (risque of incidentForm.risques; track $index; let i = $index) {
+                <div class="risk-card">
+                  <div class="form-group risk-reference-field">
+                    <label>ID du risque</label>
+                    <input type="text" class="form-control auto-id-field" [(ngModel)]="risque.reference" name="reference{{ i }}" readonly>
+                  </div>
+                  <div class="form-group risk-description-field">
+                    <label>Libellé / Description du risque</label>
+                    <textarea class="form-control" rows="3" [(ngModel)]="risque.description" name="description{{ i }}" placeholder="Décrire clairement le risque"></textarea>
+                  </div>
+                  <button type="button" class="btn btn-danger risk-remove-button" (click)="removeRisque(i)">Supprimer</button>
+                </div>
+              }
               @if (!incidentForm.risques || incidentForm.risques.length === 0) {
                 <p class="text-muted" style="font-size: 0.85rem; font-style: italic;">Aucun risque ajouté.</p>
               }
