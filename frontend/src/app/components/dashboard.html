@@ -1,3 +1,528 @@
+@if (apiService.isRssi()) {
+<div class="dashboard-shell" [class.light-theme]="!darkMode()">
+  <aside class="sidebar" [class.open]="sidebarOpen()">
+    <div class="sidebar-brand">
+      <img src="assets/logo.png" alt="Logo TELNET" />
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Navigation principale">
+      @if (apiService.isRssi()) {
+        <button type="button" class="sidebar-link" [class.active]="activeTab() === 'stats'" (click)="switchTab('stats'); closeSidebar()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+          <span>Dashboard <small>(Statistiques)</small></span>
+        </button>
+      }
+
+      <button type="button" class="sidebar-link" [class.active]="activeTab() === 'events'" (click)="switchTab('events'); closeSidebar()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" /></svg>
+        <span>Événements</span>
+      </button>
+
+      @if (apiService.isRssi()) {
+        <button type="button" class="sidebar-link" [class.active]="activeTab() === 'incidents'" (click)="switchTab('incidents'); closeSidebar()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12M6 7V5h3l1 2m8 0 1 13H5L6 7Zm3 4h6" /></svg>
+          <span>Plan d'Incidents</span>
+        </button>
+
+        <button type="button" class="sidebar-link" [class.active]="activeTab() === 'logs'" (click)="switchTab('logs'); closeSidebar()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v16H4zM8 3v4m8-4v4M8 12h8m-8 4h6" /></svg>
+          <span>Journal d'Audits</span>
+        </button>
+      }
+
+      <button type="button" class="sidebar-link" [class.active]="activeTab() === 'settings'" (click)="openSettings()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </aside>
+
+  @if (sidebarOpen()) {
+    <button type="button" class="sidebar-overlay" aria-label="Fermer le menu" (click)="closeSidebar()"></button>
+  }
+
+  <section class="workspace">
+    <header class="topbar">
+      <button type="button" class="mobile-menu" aria-label="Ouvrir le menu" (click)="toggleSidebar()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+
+      <div class="topbar-actions">
+        <button type="button" class="topbar-button" (click)="openSettings()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /></svg>
+          <span>{{ apiService.currentUser()?.username || 'RSSI User' }}</span>
+        </button>
+        <button type="button" class="topbar-button" (click)="logout()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /></svg>
+          <span>Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+  <!-- Notifications -->
+  @if (successMsg()) {
+    <div class="alert alert-success d-flex justify-between align-center">
+      <span>{{ successMsg() }}</span>
+      <button class="btn-close" (click)="successMsg.set('')">&times;</button>
+    </div>
+  }
+  @if (errorMsg()) {
+    <div class="alert alert-danger d-flex justify-between align-center">
+      <span>{{ errorMsg() }}</span>
+      <button class="btn-close" (click)="errorMsg.set('')">&times;</button>
+    </div>
+  }
+
+  <!-- TAB 0: STATS (RSSI ONLY) -->
+  @if (activeTab() === 'stats' && apiService.isRssi()) {
+    <div class="tab-view rssi-dashboard">
+      <div class="dashboard-heading">
+        <h1 class="view-title">Tableau de Bord RSSI</h1>
+        <div class="heading-actions">
+          <button type="button" class="action-chip" title="Voir les événements" (click)="switchTab('events')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+            Notifications
+          </button>
+          <button type="button" class="action-chip" title="Bouton d'interface — aucun service chatbot n'est configuré">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M12 3v3M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Zm3 5h.01M16 13h.01M8 17h8" /></svg>
+            Chatbot IA
+          </button>
+          <button type="button" class="action-chip theme-chip" (click)="toggleTheme()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" /></svg>
+            {{ darkMode() ? 'Mode Clair' : 'Mode Sombre' }}
+          </button>
+        </div>
+      </div>
+
+      <section class="kpi-grid" aria-label="Indicateurs principaux">
+        <article class="kpi-card">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" /></svg>
+          </div>
+          <div><p>Événements Déclarés</p><strong>{{ events().length }}</strong></div>
+        </article>
+
+        <article class="kpi-card">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1c5-3 9 3 14 0v9c-5 3-9-3-14 0" /></svg>
+          </div>
+          <div><p>Incidents En Cours</p><strong>{{ getIncidentsEnCours() }}</strong></div>
+        </article>
+
+        <article class="kpi-card">
+          <div class="kpi-icon accent">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 12 3 3 7-7M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" /></svg>
+          </div>
+          <div><p>Incidents Traités</p><strong class="accent-number">{{ getIncidentsTraites() }}</strong></div>
+        </article>
+
+        <article class="kpi-card">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z" /></svg>
+          </div>
+          <div><p>Risques Touchés</p><strong>{{ getRisquesTouchesCount() }}</strong></div>
+        </article>
+      </section>
+
+      <section class="analytics-grid">
+        <article class="dashboard-panel monthly-panel">
+          <h2>Événements Déclarés par Mois</h2>
+          @if (getEventsByYear().length > 0) {
+            <div class="vertical-chart" aria-label="Événements déclarés par mois">
+              @for (item of getEventsByYear(); track item.date) {
+                <div class="vertical-bar-item" [title]="item.date + ' : ' + item.count">
+                  <span class="bar-number">{{ item.count }}</span>
+                  <div class="vertical-bar" [style.height.%]="getEventBarHeight(item.count)"></div>
+                  <span class="axis-label">{{ item.date }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="panel-empty">Aucune donnée</p>
+          }
+        </article>
+
+        <article class="dashboard-panel treatment-panel">
+          <h2>Temps Traitement / Incident <span>(Top 10)</span></h2>
+          @if (getTempsTraitementChartData().length > 0) {
+            <div class="horizontal-list">
+              @for (item of getTempsTraitementChartData(); track item.incidentId) {
+                <div class="horizontal-row" [title]="'Incident #' + item.incidentId + ' : ' + item.label">
+                  <span>#{{ item.incidentId }}</span>
+                  <div class="track"><i [style.width.%]="item.heightPct"></i></div>
+                  <small>{{ item.label }}</small>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="panel-empty">Aucune donnée</p>
+          }
+        </article>
+
+        <article class="dashboard-panel state-panel">
+          <h2>État des Incidents</h2>
+          @if (incidents().length > 0) {
+            <div class="donut-layout">
+              <div class="donut-chart" [style.background]="getIncidentDonutGradient()">
+                <div class="donut-hole"><strong>{{ incidents().length }}</strong><span>Total</span></div>
+              </div>
+              <div class="donut-legend">
+                @for (item of getIncidentsByEtat(); track item.etat; let index = $index) {
+                  <div><i [class]="'legend-dot dot-' + index"></i><span>{{ item.etat }} ({{ item.count }})</span></div>
+                }
+              </div>
+            </div>
+          } @else {
+            <p class="panel-empty">Aucune donnée</p>
+          }
+        </article>
+
+        <article class="dashboard-panel nature-panel">
+          <h2>Événements par Nature</h2>
+          @if (getEventsByNature().length > 0) {
+            <div class="nature-list">
+              @for (item of getEventsByNature(); track item.nature) {
+                <div class="nature-row" [title]="item.nature + ' : ' + item.count">
+                  <span>{{ item.nature }}</span>
+                  <div class="track"><i [style.width.%]="getNatureBarWidth(item.count)"></i></div>
+                  <strong>{{ item.count }}</strong>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="panel-empty">Aucune donnée</p>
+          }
+        </article>
+
+        <article class="dashboard-panel risk-panel">
+          <h2>Risques Impactés</h2>
+          <div class="risk-table-wrap">
+            <table class="risk-table">
+              <thead><tr><th>Inc. N°</th><th>Réf</th><th>Description</th></tr></thead>
+              <tbody>
+                @for (risque of getRisquesList(); track risque.incidentId + '-' + risque.ref) {
+                  <tr>
+                    <td>#{{ risque.incidentId }}</td>
+                    <td><span class="risk-ref">{{ risque.ref || '—' }}</span></td>
+                    <td>{{ risque.desc || 'Aucune description' }}</td>
+                  </tr>
+                }
+                @if (getRisquesList().length === 0) {
+                  <tr><td colspan="3" class="panel-empty">Aucun risque identifié</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </div>
+  }
+
+  <!-- TAB 1: EVENTS -->
+  @if (activeTab() === 'events') {
+    <div class="tab-view">
+      <div class="tab-header d-flex justify-between align-center">
+        <div>
+          <h1 class="view-title">{{ apiService.isRssi() ? 'Tous les Événements' : 'Mes Déclarations' }}</h1>
+
+        </div>
+        <button class="btn btn-primary" (click)="openCreateEvent()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Déclarer un problème
+          </button>
+        </div>
+
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
+        <table class="table-premium">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Détecté le</th>
+              <th>Détecté par</th>
+              <th>État</th>
+              <th>Confidentialité</th>
+              <th>Intégrité</th>
+              <th>Qualification</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (event of events(); track event.id) {
+              <tr>
+                <td><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
+                <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  <span class="badge badge-secondary">{{ event.detecteParSource }}</span>
+                  <div class="qualified-by" style="font-size: 0.75rem;">par {{ event.declarePar || 'Inconnu' }}</div>
+                </td>
+                <td>
+                  <span class="badge" [class.badge-success]="event.etat === 'Clos'" [class.badge-warning]="event.etat === 'Ouvert'" [class.badge-info]="event.etat === 'En cours'">
+                    {{ event.etat || 'Ouvert' }}
+                  </span>
+                </td>
+                
+                <td>
+                  <span class="badge" [class.badge-danger]="event.impactConfidentialite === 'Majeur' || event.impactConfidentialite === 'Critique'" [class.badge-success]="event.impactConfidentialite === 'Aucun'">{{ event.impactConfidentialite || '-' }}</span>
+                  <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireConfidentialite">{{ event.commentaireConfidentialite || '' }}</div>
+                </td>
+                <td>
+                  <span class="badge" [class.badge-danger]="event.impactIntegrite === 'Majeur' || event.impactIntegrite === 'Critique'" [class.badge-success]="event.impactIntegrite === 'Aucun'">{{ event.impactIntegrite || '-' }}</span>
+                  <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireIntegrite">{{ event.commentaireIntegrite || '' }}</div>
+                </td>
+                
+                <td>
+                  <span class="badge" 
+                    [class.badge-danger]="event.qualification === 'INCIDENT'"
+                    [class.badge-success]="event.qualification === 'NON_INCIDENT'"
+                    [class.badge-secondary]="event.qualification === 'NON_QUALIFIE'"
+                  >
+                    {{ event.qualification === 'INCIDENT' ? 'Incident' : (event.qualification === 'NON_INCIDENT' ? 'Classé sans suite' : 'En attente') }}
+                  </span>
+                </td>
+
+                <td class="actions-cell">
+                  <div class="action-buttons">
+                    @if (!apiService.isRssi()) {
+                      <button
+                        class="btn btn-primary btn-icon btn-send-rssi"
+                        (click)="sendEventToRssi(event)"
+                        [disabled]="event.envoyeAuRssi || !canSendEventToRssi(event) || isSendingToRssi()"
+                        [title]="event.envoyeAuRssi ? 'Déjà envoyé au RSSI' : (canSendEventToRssi(event) ? 'Envoyer au RSSI' : 'Complétez tous les champs du formulaire')"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                      </button>
+                    }
+                    <button class="btn btn-secondary btn-icon" (click)="openEditEvent(event)" title="Consulter / Modifier">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    @if (apiService.isRssi()) {
+                      <button class="btn btn-primary btn-icon btn-qualify" (click)="openQualify(event)" [title]="event.qualification === 'NON_QUALIFIE' ? 'Qualifier' : 'Modifier la qualification'">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                      </button>
+                    }
+                    <button class="btn btn-danger btn-icon" (click)="deleteEvent(event.id!)" title="Supprimer">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="text-center text-muted empty-state">
+                  <div class="empty-icon-wrapper">
+                    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="50" cy="50" r="40" stroke="#1b3f75" stroke-width="4"/>
+                      <path d="M30 50L45 65L75 35" stroke="#4ade80" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="20" cy="40" r="2" fill="#86efac"/>
+                      <circle cx="80" cy="60" r="2" fill="#86efac"/>
+                      <circle cx="70" cy="20" r="2" fill="#86efac"/>
+                      <circle cx="30" cy="80" r="2" fill="#86efac"/>
+                    </svg>
+                  </div>
+                  <div class="empty-text">Aucun événement n'a été déclaré pour le moment.</div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- TAB 2: INCIDENTS -->
+  @if (activeTab() === 'incidents' && apiService.isRssi()) {
+    <div class="tab-view">
+      <div class="tab-header d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="view-title">Plan d'incident</h1>
+
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="table-premium">
+          <thead>
+            <tr>
+              <th>ID ÉVÉNEMENT</th>
+              <th>DESCRIPTION</th>
+              <th>NATURE</th>
+              <th>DATE DÉTECTION</th>
+              <th>ÉTAT ÉVÉN.</th>
+              <th>DURÉE INDISPONIBILITÉ</th>
+              <th>DURÉE TRAITEMENT</th>
+              <th>DATE/HEURE OUVERTURE</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (inc of incidents(); track inc.id) {
+              <tr>
+                <td><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
+                <td><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
+                <td><span class="badge badge-info">{{ inc.evenement?.natureEvenement || 'Non spécifié' }}</span></td>
+                <td>{{ inc.evenement?.dateHeureDetection ? (inc.evenement!.dateHeureDetection | date:'dd/MM/yyyy HH:mm') : 'Non spécifiée' }}</td>
+                <td><span class="badge" [class.badge-success]="inc.evenement?.etat === 'Clos'">{{ inc.evenement?.etat || 'Non spécifié' }}</span></td>
+                <td>{{ inc.dureeIndisponibilite || '-' }}</td>
+                <td>{{ inc.dureeTraitement || '-' }}</td>
+                <td>
+                  @if (inc.mesureDDT) {
+                    {{ inc.mesureDDT | date:'dd/MM/yyyy' }} {{ inc.heureAttenuation || '' }}
+                  } @else {
+                    -
+                  }
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button class="btn btn-primary btn-icon" (click)="openEditIncident(inc)" title="Gérer le plan">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </button>
+                    @if (apiService.isRssi()) {
+                      <button class="btn btn-danger btn-icon" (click)="deleteIncident(inc.id!)" title="Supprimer">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="text-center text-muted empty-state">
+                  <div class="empty-icon-wrapper">
+                    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="50" cy="50" r="40" stroke="#1b3f75" stroke-width="4"/>
+                      <path d="M30 50L45 65L75 35" stroke="#4ade80" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <div class="empty-text">Aucun incident n'est en cours de traitement.</div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- TAB 3: LOGS -->
+  @if (activeTab() === 'logs' && apiService.isRssi()) {
+    <div class="tab-view">
+      <div class="tab-header d-flex justify-between align-center">
+        <div>
+          <h1 class="view-title">Journal d'Audit de Sécurité</h1>
+
+        </div>
+        <button class="btn btn-secondary" (click)="loadLogs()" style="border-radius: 50px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.5rem;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Actualiser
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table class="table-premium">
+          <thead>
+            <tr>
+              <th style="width: 200px;">HORODATAGE</th>
+              <th style="width: 150px;">UTILISATEUR</th>
+              <th>ACTION TECHNIQUE EFFECTUÉE</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of logs(); track log.id) {
+              <tr>
+                <td class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+                <td>
+                  <span class="badge badge-secondary" style="display:inline-flex; align-items:center; gap:0.3rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    {{ log.username }}
+                  </span>
+                </td>
+                <td class="log-action">{{ log.action }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="3" class="text-center text-muted">Le journal est vide.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+
+  <!-- TAB 4: ACCOUNT SETTINGS (RSSI ONLY) -->
+  @if (activeTab() === 'settings') {
+    <div class="tab-view settings-view">
+      <div class="settings-page-heading">
+        <h1 class="view-title">Settings</h1>
+        <p>Gérez les informations et les préférences de votre compte.</p>
+      </div>
+
+      <section class="account-settings-card" aria-labelledby="account-settings-title">
+        <div class="account-settings-header">
+          <h2 id="account-settings-title">Account Settings</h2>
+          <p>Manage your account information</p>
+        </div>
+
+        <form class="account-settings-form" (ngSubmit)="saveUserProfile()">
+          <div class="settings-field">
+            <label for="settingsUsername">Nom d'utilisateur</label>
+            <input
+              id="settingsUsername"
+              type="text"
+              name="settingsUsername"
+              class="settings-input"
+              [(ngModel)]="userForm.username"
+              autocomplete="name"
+              required
+            />
+          </div>
+
+          <div class="settings-field">
+            <label for="settingsEmail">Adresse email</label>
+            <input
+              id="settingsEmail"
+              type="email"
+              name="settingsEmail"
+              class="settings-input disabled-input"
+              [(ngModel)]="userForm.email"
+              disabled
+            />
+            <small>Email cannot be changed</small>
+          </div>
+
+          <div class="settings-preference-row">
+            <div>
+              <strong>Send me product updates and tips</strong>
+              <p>Recevoir des conseils et les informations importantes sur le produit.</p>
+            </div>
+            <button
+              type="button"
+              class="settings-toggle"
+              [class.enabled]="productUpdates()"
+              [attr.aria-pressed]="productUpdates()"
+              aria-label="Activer ou désactiver les mises à jour produit"
+              (click)="toggleProductUpdates()"
+            >
+              <span></span>
+            </button>
+          </div>
+
+          <div class="settings-actions">
+            <button type="submit" class="save-settings-button" [disabled]="isSubmitting()">
+              {{ isSubmitting() ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  }
+
+</main>
+  </section>
+</div>
+} @else {
 <!-- Header / Navigation Bar -->
 <header class="app-header">
   <div class="header-logo" style="display: flex; align-items: center; gap: 0.5rem;">
@@ -436,10 +961,11 @@
     </div>
   }
 </main>
+}
 
 <!-- FORM MODAL: CREATE / EDIT EVENEMENT (REDESIGNED WIZARD/CLEAN LAYOUT) -->
 @if (showEventForm()) {
-  <div class="modal-backdrop">
+  <div class="modal-backdrop" [class.rssi-modal]="apiService.isRssi()" [class.rssi-light-modal]="apiService.isRssi() && !darkMode()">
     <div class="modal-card modal-large">
       <div class="modal-header">
         <h3 class="modal-title">{{ selectedEvent() ? 'Détails de l\'Événement #EV-' + selectedEvent()!.id : 'Nouveau Signalement' }}</h3>
@@ -594,7 +1120,7 @@
 
 <!-- FORM MODAL: QUALIFY EVENEMENT (RSSI ONLY) -->
 @if (showQualifyForm()) {
-  <div class="modal-backdrop">
+  <div class="modal-backdrop" [class.rssi-modal]="apiService.isRssi()" [class.rssi-light-modal]="apiService.isRssi() && !darkMode()">
     <div class="modal-card modal-small">
       <div class="modal-header">
         <h3 class="modal-title">{{ selectedEvent()?.qualification === 'NON_QUALIFIE' ? 'Qualification RSSI' : 'Modifier la qualification' }}</h3>
@@ -682,7 +1208,7 @@
 
 <!-- FORM MODAL: CREATE / EDIT PLAN DE TRAITEMENT (INCIDENT) -->
 @if (showIncidentForm()) {
-  <div class="modal-backdrop">
+  <div class="modal-backdrop" [class.rssi-modal]="apiService.isRssi()" [class.rssi-light-modal]="apiService.isRssi() && !darkMode()">
     <div class="modal-card modal-large">
       <div class="modal-header">
         <h3 class="modal-title">
@@ -999,7 +1525,7 @@
 
 <!-- FORM MODAL: USER ACCOUNT (MON COMPTE) -->
 @if (showUserModal()) {
-  <div class="modal-backdrop">
+  <div class="modal-backdrop" [class.rssi-modal]="apiService.isRssi()" [class.rssi-light-modal]="apiService.isRssi() && !darkMode()">
     <div class="modal-card modal-small">
       <div class="modal-header">
         <h3 class="modal-title">Mon Compte</h3>

@@ -106,10 +106,7 @@ interface Incident {
   styleUrl: './dashboard.css'
 })
 export class DashboardComponent implements OnInit {
-  activeTab = signal<'stats' | 'events' | 'incidents' | 'logs' | 'settings'>('stats');
-  darkMode = signal(true);
-  sidebarOpen = signal(false);
-  productUpdates = signal(false);
+  activeTab = signal<'stats' | 'events' | 'incidents' | 'logs'>('stats');
 
   // Lists
   events = signal<Evenement[]>([]);
@@ -195,7 +192,6 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.activeTab.set(this.apiService.isRssi() ? 'stats' : 'events');
-    this.productUpdates.set(localStorage.getItem('telnet_product_updates') === 'true');
     this.loadEvents();
     this.loadIncidents();
     this.loadLogs();
@@ -289,48 +285,8 @@ export class DashboardComponent implements OnInit {
     };
   }
 
-  toggleTheme(): void {
-    this.darkMode.update(value => !value);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarOpen.update(value => !value);
-  }
-
-  closeSidebar(): void {
-    this.sidebarOpen.set(false);
-  }
-
-  getEventBarHeight(count: number): number {
-    const max = Math.max(...this.getEventsByYear().map(item => item.count), 0);
-    return max === 0 ? 0 : Math.max(10, Math.round((count / max) * 100));
-  }
-
-  getNatureBarWidth(count: number): number {
-    const max = Math.max(...this.getEventsByNature().map(item => item.count), 0);
-    return max === 0 ? 0 : Math.max(8, Math.round((count / max) * 100));
-  }
-
-  getIncidentDonutGradient(): string {
-    const states = this.getIncidentsByEtat();
-    const total = states.reduce((sum, item) => sum + item.count, 0);
-    if (total === 0) {
-      return 'conic-gradient(#3a4351 0 100%)';
-    }
-
-    const open = ((states.find(item => item.etat === 'Ouvert')?.count || 0) / total) * 100;
-    const inProgress = ((states.find(item => item.etat === 'En cours')?.count || 0) / total) * 100;
-    const secondStop = open + inProgress;
-
-    return `conic-gradient(
-      #7898cc 0 ${open}%,
-      #57709a ${open}% ${secondStop}%,
-      #394453 ${secondStop}% 100%
-    )`;
-  }
-
   // --- Actions ---
-  switchTab(tab: 'events' | 'incidents' | 'logs' | 'stats' | 'settings'): void {
+  switchTab(tab: 'events' | 'incidents' | 'logs' | 'stats'): void {
     this.activeTab.set(tab as any);
     this.successMsg.set('');
     this.errorMsg.set('');
@@ -592,23 +548,6 @@ export class DashboardComponent implements OnInit {
     this.showUserModal.set(true);
   }
 
-  openSettings(): void {
-    const current = this.apiService.currentUser();
-    this.userForm = {
-      username: current?.username || '',
-      email: current?.email || '',
-      role: current?.role || ''
-    };
-    this.activeTab.set('settings');
-    this.successMsg.set('');
-    this.errorMsg.set('');
-    this.closeSidebar();
-  }
-
-  toggleProductUpdates(): void {
-    this.productUpdates.update(value => !value);
-  }
-
   saveUserProfile(): void {
     const user = this.apiService.currentUser();
     const trimmedUsername = (this.userForm.username || '').trim();
@@ -626,12 +565,9 @@ export class DashboardComponent implements OnInit {
       role: user.role
     }).subscribe({
       next: () => {
-        localStorage.setItem('telnet_product_updates', String(this.productUpdates()));
         this.successMsg.set('Profil mis à jour avec succès.');
         this.errorMsg.set('');
-        if (!this.apiService.isRssi()) {
-          this.showUserModal.set(false);
-        }
+        this.showUserModal.set(false);
       },
       error: (err) => {
         const message = err?.error?.message || 'Erreur lors de la sauvegarde du profil.';
