@@ -923,13 +923,13 @@ label {
     radial-gradient(circle at 78% 5%, rgba(86, 119, 165, 0.08), transparent 28%),
     var(--shell-bg);
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 196px minmax(0, 1fr);
   transition: background-color 180ms ease, color 180ms ease;
 }
 
 .dashboard-shell.light-theme {
   --shell-bg: #dcecff;
-  --sidebar-bg: #234f7c;
+  --sidebar-bg: #cfe3fb;
   --topbar-bg: rgba(230, 242, 255, 0.94);
   --surface: #f4f9ff;
   --surface-soft: #dbeafe;
@@ -963,7 +963,7 @@ label {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 90;
-  width: 232px;
+  width: 196px;
   background: linear-gradient(180deg, var(--sidebar-bg), color-mix(in srgb, var(--sidebar-bg) 92%, #000 8%));
   border-right: 1px solid var(--line);
   overflow-y: auto;
@@ -1818,20 +1818,18 @@ label {
 
 .save-settings-button {
   min-height: 42px;
-  padding: 10px 22px;
-  border: 1px solid color-mix(in srgb, var(--accent-dashboard) 82%, #ffffff 18%);
+  padding: 10px 20px;
+  border: 1px solid #d4a72d;
   border-radius: 9px;
-  color: #ffffff;
-  background: linear-gradient(180deg, #4f86c2, #2d659f);
+  color: #181308;
+  background: linear-gradient(180deg, #e7c55e, #d2a83b);
   font-weight: 750;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(35, 91, 150, 0.28);
-  transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 8px 20px rgba(185, 136, 23, 0.2);
 }
 
 .save-settings-button:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: 0 10px 24px rgba(35, 91, 150, 0.34);
+  background: linear-gradient(180deg, #f0d271, #ddb54b);
   transform: translateY(-1px);
 }
 
@@ -1956,291 +1954,5 @@ label {
 
   .settings-preference-row {
     align-items: flex-start;
-  }
-}
-
-
-/* =========================================================
-   Requested refinements: larger RSSI sidebar, blue light-mode
-   navigation, editable account security and a no-scroll desktop
-   detector events table.
-   ========================================================= */
-.dashboard-shell.light-theme .sidebar {
-  background: linear-gradient(180deg, #1d426d 0%, #285e91 54%, #1c456f 100%);
-  border-right-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 8px 0 26px rgba(23, 65, 108, 0.18);
-}
-
-.dashboard-shell.light-theme .sidebar-brand {
-  border-bottom-color: rgba(255, 255, 255, 0.18);
-}
-
-.dashboard-shell.light-theme .sidebar-brand img {
-  filter: brightness(0) invert(1) opacity(0.94);
-}
-
-.dashboard-shell.light-theme .sidebar-link {
-  color: #dcecff;
-}
-
-.dashboard-shell.light-theme .sidebar-link small {
-  color: #b8d5f2;
-}
-
-.dashboard-shell.light-theme .sidebar-link:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.dashboard-shell.light-theme .sidebar-link.active {
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.25);
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0.2), rgba(140, 193, 240, 0.18));
-  box-shadow: inset 4px 0 0 #9dcbf3;
-}
-
-.settings-password-section {
-  padding-top: 2px;
-  display: grid;
-  gap: 16px;
-}
-
-.settings-section-heading h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 1rem;
-}
-
-.settings-section-heading p,
-.password-rule {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-
-.settings-password-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.settings-field-wide {
-  grid-column: 1 / -1;
-}
-
-.detector-main {
-  max-width: none;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 2rem clamp(0.8rem, 2vw, 2rem);
-}
-
-.detector-events-container {
-  overflow-x: visible;
-  white-space: normal;
-}
-
-.detector-events-table {
-  width: 100%;
-  min-width: 0;
-  table-layout: fixed;
-}
-
-.detector-events-table th,
-.detector-events-table td {
-  padding: 0.82rem 0.48rem;
-  font-size: clamp(0.68rem, 0.78vw, 0.84rem);
-  line-height: 1.35;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: normal;
-}
-
-.detector-events-table th:nth-child(1) { width: 15%; }
-.detector-events-table th:nth-child(2) { width: 11%; }
-.detector-events-table th:nth-child(3) { width: 13%; }
-.detector-events-table th:nth-child(4) { width: 8%; }
-.detector-events-table th:nth-child(5) { width: 10%; }
-.detector-events-table th:nth-child(6) { width: 10%; }
-.detector-events-table th:nth-child(7) { width: 11%; }
-.detector-events-table th:nth-child(8) { width: 8%; }
-.detector-events-table th:nth-child(9) { width: 14%; }
-
-.detector-events-table .truncate-text {
-  max-width: 100% !important;
-}
-
-.detector-events-table .action-buttons {
-  min-width: 0;
-  width: 100%;
-  gap: 0.28rem;
-  flex-wrap: nowrap;
-}
-
-.detector-events-table .btn-icon {
-  width: 33px;
-  min-width: 33px;
-  height: 33px;
-  padding: 0;
-}
-
-.detector-actions-cell {
-  position: static;
-  z-index: auto;
-  background: #ffffff;
-}
-
-.detector-events-table tbody tr:hover .detector-actions-cell {
-  background: #f8fafc;
-}
-
-@media (max-width: 760px) {
-  .settings-password-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-field-wide {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 980px) {
-  .detector-events-container {
-    overflow-x: auto;
-  }
-
-  .detector-events-table {
-    min-width: 940px;
-  }
-
-  .detector-actions-cell {
-    position: sticky;
-    right: 0;
-    z-index: 1;
-  }
-}
-
-/* =========================================================
-   RSSI layout refinements — July 2026
-   ========================================================= */
-@media (min-width: 901px) {
-  .dashboard-shell {
-    grid-template-columns: 260px minmax(0, 1fr);
-  }
-
-  .dashboard-shell .sidebar {
-    width: 260px;
-  }
-}
-
-/* TELNET logo blue in light mode. */
-.dashboard-shell.light-theme .sidebar {
-  background: linear-gradient(180deg, #246b9f 0%, #5fa2d7 52%, #2e78ad 100%);
-  border-right-color: rgba(255, 255, 255, 0.28);
-}
-
-.dashboard-shell.light-theme .sidebar-link {
-  color: #f1f8ff;
-}
-
-.dashboard-shell.light-theme .sidebar-link small {
-  color: #d6ebfb;
-}
-
-.dashboard-shell.light-theme .sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.dashboard-shell.light-theme .sidebar-link.active {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.34);
-  box-shadow: inset 4px 0 0 #ffffff;
-}
-
-/* Save Changes must stay blue even if a legacy .btn rule is loaded. */
-.dashboard-shell .save-settings-button {
-  color: #ffffff !important;
-  border-color: #1769aa !important;
-  background: linear-gradient(180deg, #2781c5 0%, #1769aa 100%) !important;
-  box-shadow: 0 9px 22px rgba(23, 105, 170, 0.3) !important;
-}
-
-.dashboard-shell .save-settings-button:hover:not(:disabled) {
-  background: linear-gradient(180deg, #3293d9 0%, #1b75bb 100%) !important;
-}
-
-/* Detector: use the full available width and keep Actions visible on desktop. */
-.detector-main {
-  width: 100%;
-  max-width: none;
-  padding-inline: clamp(0.55rem, 1.2vw, 1.25rem);
-}
-
-.detector-events-container {
-  width: 100%;
-  max-width: none;
-  overflow-x: visible;
-}
-
-.detector-events-table {
-  width: 100%;
-  min-width: 0;
-  table-layout: fixed;
-}
-
-.detector-events-table th,
-.detector-events-table td {
-  padding: 0.72rem 0.38rem;
-  font-size: clamp(0.66rem, 0.72vw, 0.82rem);
-  white-space: normal;
-  overflow-wrap: anywhere;
-  vertical-align: middle;
-}
-
-.detector-events-table th:nth-child(1) { width: 14%; }
-.detector-events-table th:nth-child(2) { width: 11%; }
-.detector-events-table th:nth-child(3) { width: 12%; }
-.detector-events-table th:nth-child(4) { width: 8%; }
-.detector-events-table th:nth-child(5) { width: 10%; }
-.detector-events-table th:nth-child(6) { width: 10%; }
-.detector-events-table th:nth-child(7) { width: 11%; }
-.detector-events-table th:nth-child(8) { width: 8%; }
-.detector-events-table th:nth-child(9) { width: 16%; }
-
-.detector-events-table .action-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 0.22rem;
-  width: 100%;
-  min-width: 0;
-  flex-wrap: nowrap;
-}
-
-.detector-events-table .btn-icon {
-  width: 31px;
-  min-width: 31px;
-  height: 31px;
-}
-
-.detector-actions-cell {
-  position: static !important;
-  right: auto !important;
-  min-width: 0;
-}
-
-@media (max-width: 980px) {
-  .detector-events-container {
-    overflow-x: auto;
-  }
-
-  .detector-events-table {
-    min-width: 900px;
-  }
-
-  .detector-actions-cell {
-    position: sticky !important;
-    right: 0 !important;
-    z-index: 2;
   }
 }

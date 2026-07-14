@@ -485,63 +485,11 @@
               id="settingsEmail"
               type="email"
               name="settingsEmail"
-              class="settings-input"
+              class="settings-input disabled-input"
               [(ngModel)]="userForm.email"
-              autocomplete="email"
-              required
+              disabled
             />
-            <small>Pour modifier l'adresse email, confirmez avec votre mot de passe actuel.</small>
-          </div>
-
-          <div class="settings-password-section">
-            <div class="settings-section-heading">
-              <h3>Sécurité du compte</h3>
-              <p>Laissez le nouveau mot de passe vide pour conserver le mot de passe actuel.</p>
-            </div>
-
-            <div class="settings-password-grid">
-              <div class="settings-field settings-field-wide">
-                <label for="settingsCurrentPassword">Mot de passe actuel</label>
-                <input
-                  id="settingsCurrentPassword"
-                  type="password"
-                  name="settingsCurrentPassword"
-                  class="settings-input"
-                  [(ngModel)]="userForm.currentPassword"
-                  autocomplete="current-password"
-                  placeholder="Mot de passe actuel"
-                />
-                <small>Obligatoire pour changer l'email ou le mot de passe.</small>
-              </div>
-
-              <div class="settings-field">
-                <label for="settingsNewPassword">Nouveau mot de passe</label>
-                <input
-                  id="settingsNewPassword"
-                  type="password"
-                  name="settingsNewPassword"
-                  class="settings-input"
-                  [(ngModel)]="userForm.newPassword"
-                  autocomplete="new-password"
-                  placeholder="Nouveau mot de passe"
-                />
-              </div>
-
-              <div class="settings-field">
-                <label for="settingsConfirmPassword">Confirmer le mot de passe</label>
-                <input
-                  id="settingsConfirmPassword"
-                  type="password"
-                  name="settingsConfirmPassword"
-                  class="settings-input"
-                  [(ngModel)]="userForm.confirmPassword"
-                  autocomplete="new-password"
-                  placeholder="Confirmer le mot de passe"
-                />
-              </div>
-            </div>
-
-            <p class="password-rule">8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&amp;).</p>
+            <small>Email cannot be changed</small>
           </div>
 
           <div class="settings-preference-row">
@@ -617,7 +565,7 @@
 </header>
 
 <!-- Main Workspace Content -->
-<main class="app-main detector-main">
+<main class="app-main">
   <!-- Notifications -->
   @if (successMsg()) {
     <div class="alert alert-success d-flex justify-between align-center">
@@ -787,8 +735,8 @@
           </button>
         </div>
 
-      <div class="table-container detector-events-container">
-        <table class="table-premium detector-events-table">
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
+        <table class="table-premium">
           <thead>
             <tr>
               <th>Nom</th>
@@ -844,7 +792,7 @@
                   }
                 </td>
                 
-                <td class="detector-actions-cell">
+                <td style="position: sticky; right: 0; background: white; z-index: 1;">
                   <div class="action-buttons">
                     @if (!apiService.isRssi()) {
                       <button

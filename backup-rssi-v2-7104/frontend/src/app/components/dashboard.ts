@@ -188,10 +188,7 @@ export class DashboardComponent implements OnInit {
   userForm = {
     username: '',
     email: '',
-    role: '',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
+    role: ''
   };
 
   constructor(protected apiService: ApiService, private cdr: ChangeDetectorRef, private router: Router) {}
@@ -590,10 +587,7 @@ export class DashboardComponent implements OnInit {
     this.userForm = {
       username: current?.username || '',
       email: current?.email || '',
-      role: current?.role || '',
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
+      role: current?.role || ''
     };
     this.showUserModal.set(true);
   }
@@ -603,10 +597,7 @@ export class DashboardComponent implements OnInit {
     this.userForm = {
       username: current?.username || '',
       email: current?.email || '',
-      role: current?.role || '',
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
+      role: current?.role || ''
     };
     this.activeTab.set('settings');
     this.successMsg.set('');
@@ -621,55 +612,23 @@ export class DashboardComponent implements OnInit {
   saveUserProfile(): void {
     const user = this.apiService.currentUser();
     const trimmedUsername = (this.userForm.username || '').trim();
-    const trimmedEmail = (this.userForm.email || '').trim();
-    const newPassword = this.userForm.newPassword || '';
-    const emailChanged = trimmedEmail.toLowerCase() !== (user?.email || '').trim().toLowerCase();
-    const passwordChanged = newPassword.length > 0;
-
-    this.successMsg.set('');
-    this.errorMsg.set('');
-
     if (!trimmedUsername) {
-      this.errorMsg.set("Le nom d'utilisateur ne peut pas être vide.");
-      return;
-    }
-    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      this.errorMsg.set("Veuillez saisir une adresse email valide.");
-      return;
-    }
-    if (passwordChanged && newPassword !== this.userForm.confirmPassword) {
-      this.errorMsg.set('La confirmation du nouveau mot de passe ne correspond pas.');
-      return;
-    }
-    if (passwordChanged && !this.isStrongPassword(newPassword)) {
-      this.errorMsg.set('Le nouveau mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.');
-      return;
-    }
-    if ((emailChanged || passwordChanged) && !this.userForm.currentPassword) {
-      this.errorMsg.set("Saisissez votre mot de passe actuel pour modifier l'email ou le mot de passe.");
+      this.errorMsg.set('Le nom utilisateur ne peut pas être vide.');
       return;
     }
     if (!user?.id) {
       this.errorMsg.set('Impossible de mettre à jour le profil.');
       return;
     }
-
-    this.isSubmitting.set(true);
     this.apiService.updateUserProfile(user.id, {
       username: trimmedUsername,
-      email: trimmedEmail,
-      role: user.role,
-      currentPassword: this.userForm.currentPassword || undefined,
-      newPassword: passwordChanged ? newPassword : undefined
+      email: (this.userForm.email || '').trim(),
+      role: user.role
     }).subscribe({
       next: () => {
         localStorage.setItem('telnet_product_updates', String(this.productUpdates()));
-        this.userForm.currentPassword = '';
-        this.userForm.newPassword = '';
-        this.userForm.confirmPassword = '';
-        this.successMsg.set(passwordChanged ? 'Profil et mot de passe mis à jour avec succès.' : 'Profil mis à jour avec succès.');
+        this.successMsg.set('Profil mis à jour avec succès.');
         this.errorMsg.set('');
-        this.isSubmitting.set(false);
         if (!this.apiService.isRssi()) {
           this.showUserModal.set(false);
         }
@@ -677,17 +636,8 @@ export class DashboardComponent implements OnInit {
       error: (err) => {
         const message = err?.error?.message || 'Erreur lors de la sauvegarde du profil.';
         this.errorMsg.set(message);
-        this.isSubmitting.set(false);
       }
     });
-  }
-
-  private isStrongPassword(password: string): boolean {
-    return password.length >= 8
-      && /[A-Z]/.test(password)
-      && /[a-z]/.test(password)
-      && /\d/.test(password)
-      && /[@$!%*?&]/.test(password);
   }
 
   findIncidentForEvent(eventId: number): Incident | undefined {
