@@ -1,8 +1,10 @@
-import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../api.service';
+
+type AuthMode = 'login' | 'signup' | 'forgot-request' | 'forgot-reset';
 
 @Component({
   selector: 'app-login',
@@ -10,169 +12,84 @@ import { ApiService } from '../api.service';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="auth-wrapper">
-      
-      <!-- Abstract Background Elements -->
       <div class="bg-shape bg-shape-1"></div>
       <div class="bg-shape bg-shape-2"></div>
       <div class="bg-shape bg-shape-3"></div>
 
-      <div class="auth-card panel">
-        
+      <section class="auth-card" aria-live="polite">
         <div class="logo-area">
-          <img src="assets/logo.png" alt="TELNET Logo" class="auth-logo">
+          <img src="assets/logo.png" alt="TELNET" class="auth-logo" />
         </div>
 
-        <div class="card-header" style="text-align: center;">
-          @if (isLoginMode()) {
-            <h1 class="auth-card-title">Se connecter</h1>
-            <p class="card-subtitle">Accédez à votre espace sécurisé en quelques instants</p>
-          } @else {
-            <h1 class="auth-card-title">S'inscrire</h1>
-            <p class="card-subtitle">Rejoignez notre plateforme technologique en quelques étapes</p>
+        <div class="card-header">
+          @switch (mode()) {
+            @case ('login') {
+              <h1>Se connecter</h1>
+              <p>Accédez à votre espace sécurisé.</p>
+            }
+            @case ('signup') {
+              <h1>S'inscrire</h1>
+              <p>Créez votre compte TELNET.</p>
+            }
+            @case ('forgot-request') {
+              <h1>Mot de passe oublié</h1>
+              <p>Recevez un code de sécurité à 6 chiffres par email.</p>
+            }
+            @case ('forgot-reset') {
+              <h1>Nouveau mot de passe</h1>
+              <p>Saisissez le code reçu et choisissez un nouveau mot de passe.</p>
+            }
           }
         </div>
 
         @if (errorMsg()) {
-          <div class="alert alert-danger">
-            <span>{{ errorMsg() }}</span>
-          </div>
+          <div class="alert alert-danger">{{ errorMsg() }}</div>
         }
         @if (successMsg()) {
-          <div class="alert alert-success">
-            <span>{{ successMsg() }}</span>
-          </div>
+          <div class="alert alert-success">{{ successMsg() }}</div>
         }
 
-        <!-- LOGIN FORM -->
-        @if (isLoginMode()) {
-          <form (ngSubmit)="onLogin()" class="auth-form">
+        @if (mode() === 'login') {
+          <form class="auth-form" (ngSubmit)="onLogin()">
             <div class="form-group">
-              <label for="username">Identifiant ou Adresse e-mail</label>
+              <label for="loginIdentifier">Identifiant ou adresse email</label>
               <div class="input-wrapper">
-                <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                <input 
-                  type="text" 
-                  id="username" 
-                  name="username" 
-                  class="form-control" 
+                <input
+                  id="loginIdentifier"
+                  name="loginIdentifier"
+                  class="form-control"
+                  type="text"
+                  autocomplete="username"
+                  [(ngModel)]="loginData.username"
                   [class.has-error]="validationErrors.username"
-                  [(ngModel)]="loginData.username" 
-                  placeholder="Jean Dupont"
+                  placeholder="Nom d'utilisateur ou email"
                   (input)="clearErrors()"
                 />
               </div>
               @if (validationErrors.username) {
                 <div class="error-text">{{ validationErrors.username }}</div>
               }
-            </div>
-            
-            <div class="form-group">
-              <label for="password">Mot de passe</label>
-              <div class="input-wrapper">
-                <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                <input 
-                  [type]="showPassword() ? 'text' : 'password'" 
-                  id="password" 
-                  name="password" 
-                  class="form-control" 
-                  [class.has-error]="validationErrors.password"
-                  [(ngModel)]="loginData.password" 
-                  placeholder="Mot de passe"
-                  (input)="clearErrors()"
-                />
-                <button type="button" class="btn-toggle-pwd" (click)="togglePassword()">
-                  @if (showPassword()) {
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  } @else {
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                  }
-                </button>
-              </div>
-              @if (validationErrors.password) {
-                <div class="error-text">{{ validationErrors.password }}</div>
-              }
-            </div>
-            
-            <div class="form-group options-row">
-              <div></div> <!-- empty div to push the link to the right -->
-              <a href="#" class="forgot-link" (click)="forgotPassword($event)">Mot de passe oublié ?</a>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 submit-btn" [disabled]="loading()">
-              @if (loading()) {
-                <span class="spinner"></span> Connexion en cours...
-              } @else {
-                Se connecter
-              }
-            </button>
-            
-            <div class="auth-switch">
-              Vous n'avez pas de compte ? <a href="#" (click)="setMode(false, $event)">S'inscrire</a>
-            </div>
-          </form>
-        } @else {
-        <!-- SIGNUP FORM -->
-          <form (ngSubmit)="onSignup()" class="auth-form">
-            
             <div class="form-group">
-              <label for="regUsername">Nom complet (Identifiant)</label>
+              <label for="loginPassword">Mot de passe</label>
               <div class="input-wrapper">
-                <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                <input 
-                  type="text" 
-                  id="regUsername" 
-                  name="regUsername" 
-                  class="form-control"
-                  [class.has-error]="validationErrors.username"
-                  [(ngModel)]="signupData.username" 
-                  placeholder="Jean Dupont"
-                  (input)="clearErrors()"
-                />
-              </div>
-              @if (validationErrors.username) {
-                <div class="error-text">{{ validationErrors.username }}</div>
-              }
-            </div>
-            
-            <div class="form-group">
-              <label for="regEmail">Adresse e-mail</label>
-              <div class="input-wrapper">
-                <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                <input 
-                  type="email" 
-                  id="regEmail" 
-                  name="regEmail" 
-                  class="form-control"
-                  [class.has-error]="validationErrors.email"
-                  [(ngModel)]="signupData.email" 
-                  placeholder="jean.dupont@email.com"
-                  (input)="clearErrors()"
-                />
-              </div>
-              @if (validationErrors.email) {
-                <div class="error-text">{{ validationErrors.email }}</div>
-              }
-            </div>
-            
-            <div class="form-group">
-              <label for="regPassword">Mot de passe</label>
-              <div class="input-wrapper">
-                <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                <input 
-                  [type]="showPassword() ? 'text' : 'password'" 
-                  id="regPassword" 
-                  name="regPassword" 
-                  class="form-control"
+                <input
+                  id="loginPassword"
+                  name="loginPassword"
+                  class="form-control password-control"
+                  [type]="showPassword() ? 'text' : 'password'"
+                  autocomplete="current-password"
+                  [(ngModel)]="loginData.password"
                   [class.has-error]="validationErrors.password"
-                  [(ngModel)]="signupData.password" 
                   placeholder="Mot de passe"
                   (input)="clearErrors()"
                 />
-                <button type="button" class="btn-toggle-pwd" (click)="togglePassword()">
+                <button type="button" class="password-toggle" [class.visible]="showPassword()" (click)="togglePassword()" [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" [title]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
                   @if (showPassword()) {
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c5.5 0 9.5 4.5 10 8a11.8 11.8 0 0 1-2.2 4.7"></path><path d="M6.6 6.6C4 8.2 2.4 10.5 2 12c.5 3.5 4.5 8 10 8 1.6 0 3-.4 4.3-1"></path></svg>
                   } @else {
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                   }
                 </button>
               </div>
@@ -181,476 +98,414 @@ import { ApiService } from '../api.service';
               }
             </div>
 
-            <div class="form-group" style="margin-bottom: 2rem;">
-              <label for="confirmPassword">Confirmer le mot de passe</label>
-              <div class="input-wrapper">
-                <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                <input 
-                  [type]="showPassword() ? 'text' : 'password'" 
-                  id="confirmPassword" 
-                  name="confirmPassword" 
-                  class="form-control"
-                  [class.has-error]="validationErrors.confirmPassword"
-                  [(ngModel)]="confirmPasswordValue" 
-                  placeholder="Confirmer le mot de passe"
-                  (input)="clearErrors()"
-                />
-              </div>
-              @if (validationErrors.confirmPassword) {
-                <div class="error-text">{{ validationErrors.confirmPassword }}</div>
-              }
+            <div class="form-options">
+              <button type="button" class="link-button" (click)="openForgotPassword()">Mot de passe oublié ?</button>
             </div>
-            
-            <button type="submit" class="btn btn-primary w-100 submit-btn" [disabled]="loading()">
-              @if (loading()) {
-                <span class="spinner"></span> S'inscrire...
-              } @else {
-                S'inscrire
-              }
+
+            <button class="submit-btn" type="submit" [disabled]="loading()">
+              {{ loading() ? 'Connexion en cours…' : 'Se connecter' }}
             </button>
 
-            <div class="auth-switch">
-              Vous avez déjà un compte ? <a href="#" (click)="setMode(true, $event)">Se connecter</a>
+            <p class="auth-switch">
+              Vous n'avez pas de compte ?
+              <button type="button" class="link-button strong" (click)="setMode('signup')">S'inscrire</button>
+            </p>
+          </form>
+        }
+
+        @if (mode() === 'signup') {
+          <form class="auth-form" (ngSubmit)="onSignup()">
+            <div class="form-group">
+              <label for="signupUsername">Nom complet (identifiant)</label>
+              <div class="input-wrapper">
+                <input id="signupUsername" name="signupUsername" class="form-control" type="text" autocomplete="username" [(ngModel)]="signupData.username" [class.has-error]="validationErrors.username" placeholder="Jean Dupont" (input)="clearErrors()" />
+              </div>
+              @if (validationErrors.username) { <div class="error-text">{{ validationErrors.username }}</div> }
+            </div>
+
+            <div class="form-group">
+              <label for="signupEmail">Adresse email</label>
+              <div class="input-wrapper">
+                <input id="signupEmail" name="signupEmail" class="form-control" type="email" autocomplete="email" [(ngModel)]="signupData.email" [class.has-error]="validationErrors.email" placeholder="nom@exemple.com" (input)="clearErrors()" />
+              </div>
+              @if (validationErrors.email) { <div class="error-text">{{ validationErrors.email }}</div> }
+            </div>
+
+            <div class="form-group">
+              <label for="signupPassword">Mot de passe</label>
+              <div class="input-wrapper">
+                <input id="signupPassword" name="signupPassword" class="form-control password-control" [type]="showPassword() ? 'text' : 'password'" autocomplete="new-password" [(ngModel)]="signupData.password" [class.has-error]="validationErrors.password" placeholder="Mot de passe sécurisé" (input)="clearErrors()" />
+                <button type="button" class="password-toggle" [class.visible]="showPassword()" (click)="togglePassword()" [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" [title]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
+                  @if (showPassword()) {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c5.5 0 9.5 4.5 10 8a11.8 11.8 0 0 1-2.2 4.7"></path><path d="M6.6 6.6C4 8.2 2.4 10.5 2 12c.5 3.5 4.5 8 10 8 1.6 0 3-.4 4.3-1"></path></svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  }
+                </button>
+              </div>
+              @if (validationErrors.password) { <div class="error-text">{{ validationErrors.password }}</div> }
+              <div class="password-help">8 caractères minimum, majuscule, minuscule, chiffre et caractère spécial.</div>
+            </div>
+
+            <div class="form-group">
+              <label for="signupConfirmPassword">Confirmer le mot de passe</label>
+              <div class="input-wrapper">
+                <input id="signupConfirmPassword" name="signupConfirmPassword" class="form-control password-control" [type]="showPassword() ? 'text' : 'password'" autocomplete="new-password" [(ngModel)]="confirmPasswordValue" [class.has-error]="validationErrors.confirmPassword" placeholder="Confirmez le mot de passe" (input)="clearErrors()" />
+                <button type="button" class="password-toggle" [class.visible]="showPassword()" (click)="togglePassword()" [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" [title]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
+                  @if (showPassword()) {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c5.5 0 9.5 4.5 10 8a11.8 11.8 0 0 1-2.2 4.7"></path><path d="M6.6 6.6C4 8.2 2.4 10.5 2 12c.5 3.5 4.5 8 10 8 1.6 0 3-.4 4.3-1"></path></svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  }
+                </button>
+              </div>
+              @if (validationErrors.confirmPassword) { <div class="error-text">{{ validationErrors.confirmPassword }}</div> }
+            </div>
+
+            <button class="submit-btn" type="submit" [disabled]="loading()">
+              {{ loading() ? 'Création en cours…' : "S'inscrire" }}
+            </button>
+
+            <p class="auth-switch">
+              Vous avez déjà un compte ?
+              <button type="button" class="link-button strong" (click)="setMode('login')">Se connecter</button>
+            </p>
+          </form>
+        }
+
+        @if (mode() === 'forgot-request') {
+          <form class="auth-form" (ngSubmit)="requestResetCode()">
+            <div class="form-group">
+              <label for="resetIdentifier">Identifiant ou adresse email</label>
+              <div class="input-wrapper">
+                <input id="resetIdentifier" name="resetIdentifier" class="form-control" type="text" autocomplete="username" [(ngModel)]="resetData.identifier" placeholder="Nom d'utilisateur ou email" />
+              </div>
+            </div>
+
+            <button class="submit-btn" type="submit" [disabled]="loading()">
+              {{ loading() ? 'Envoi en cours…' : 'Envoyer le code' }}
+            </button>
+
+            <button type="button" class="back-button" (click)="setMode('login')">← Retour à la connexion</button>
+          </form>
+        }
+
+        @if (mode() === 'forgot-reset') {
+          <form class="auth-form" (ngSubmit)="submitPasswordReset()">
+            <div class="reset-summary">
+              Code envoyé pour <strong>{{ resetData.identifier }}</strong>
+              <button type="button" class="link-button" (click)="setMode('forgot-request')">Modifier</button>
+            </div>
+
+            <div class="form-group">
+              <label for="resetCode">Code à 6 chiffres</label>
+              <input id="resetCode" name="resetCode" class="form-control code-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" [(ngModel)]="resetData.code" placeholder="000000" />
+            </div>
+
+            <div class="form-group">
+              <label for="newPassword">Nouveau mot de passe</label>
+              <div class="input-wrapper">
+                <input id="newPassword" name="newPassword" class="form-control password-control" [type]="showResetPassword() ? 'text' : 'password'" autocomplete="new-password" [(ngModel)]="resetData.newPassword" placeholder="Nouveau mot de passe" />
+                <button type="button" class="password-toggle" [class.visible]="showResetPassword()" (click)="showResetPassword.update(value => !value)" [attr.aria-label]="showResetPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" [title]="showResetPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
+                  @if (showResetPassword()) {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c5.5 0 9.5 4.5 10 8a11.8 11.8 0 0 1-2.2 4.7"></path><path d="M6.6 6.6C4 8.2 2.4 10.5 2 12c.5 3.5 4.5 8 10 8 1.6 0 3-.4 4.3-1"></path></svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  }
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="confirmResetPassword">Confirmer le nouveau mot de passe</label>
+              <div class="input-wrapper">
+                <input id="confirmResetPassword" name="confirmResetPassword" class="form-control password-control" [type]="showResetPassword() ? 'text' : 'password'" autocomplete="new-password" [(ngModel)]="resetData.confirmPassword" placeholder="Confirmez le mot de passe" />
+                <button type="button" class="password-toggle" [class.visible]="showResetPassword()" (click)="showResetPassword.update(value => !value)" [attr.aria-label]="showResetPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" [title]="showResetPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
+                  @if (showResetPassword()) {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c5.5 0 9.5 4.5 10 8a11.8 11.8 0 0 1-2.2 4.7"></path><path d="M6.6 6.6C4 8.2 2.4 10.5 2 12c.5 3.5 4.5 8 10 8 1.6 0 3-.4 4.3-1"></path></svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  }
+                </button>
+              </div>
+            </div>
+
+            <button class="submit-btn" type="submit" [disabled]="loading()">
+              {{ loading() ? 'Réinitialisation…' : 'Réinitialiser le mot de passe' }}
+            </button>
+
+            <div class="secondary-links">
+              <button type="button" class="link-button" [disabled]="loading()" (click)="requestResetCode()">Renvoyer le code</button>
+              <span>•</span>
+              <button type="button" class="link-button" (click)="setMode('login')">Annuler</button>
             </div>
           </form>
         }
-      </div>
-      
-      <!-- Footer Contact Info -->
-      <div class="auth-footer">
-        <p>Pour toute assistance, contactez-nous :</p>
-        <p><strong>Service Clientèle : +216 31 380 840 | Email de Contact : info&#64;groupe-telnet.net</strong></p>
-      </div>
+      </section>
     </div>
   `,
   styles: [`
+    :host { display: block; min-height: 100vh; }
     .auth-wrapper {
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background-color: #f1f4f9;
+      display: grid;
+      place-items: center;
       position: relative;
       overflow: hidden;
-      padding: 2rem;
+      padding: 32px 16px;
+      background: linear-gradient(145deg, #eef4fb 0%, #f8fafc 55%, #e5eef9 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
-
-    /* Abstract Background Graphics */
-    .bg-shape {
-      position: absolute;
-      z-index: 0;
-      border-radius: 50%;
-    }
-    .bg-shape-1 {
-      width: 400px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(162,190,230,0.4) 0%, rgba(241,244,249,0) 70%);
-      top: 10%;
-      left: 10%;
-    }
-    .bg-shape-2 {
-      width: 300px;
-      height: 300px;
-      border: 1px solid rgba(162,190,230,0.5);
-      top: 25%;
-      left: 15%;
-      border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-      transform: rotate(45deg);
-    }
-    .bg-shape-3 {
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(241,244,249,0) 70%);
-      bottom: -10%;
-      right: -10%;
-    }
-
+    .bg-shape { position: absolute; border-radius: 999px; pointer-events: none; }
+    .bg-shape-1 { width: 420px; height: 420px; left: -100px; top: -100px; background: radial-gradient(circle, rgba(37,99,235,.16), transparent 68%); }
+    .bg-shape-2 { width: 310px; height: 310px; right: 7%; top: 12%; border: 1px solid rgba(27,63,117,.18); border-radius: 35% 65% 61% 39% / 42% 38% 62% 58%; transform: rotate(22deg); }
+    .bg-shape-3 { width: 540px; height: 540px; right: -180px; bottom: -210px; background: radial-gradient(circle, rgba(147,197,253,.3), transparent 70%); }
     .auth-card {
       position: relative;
-      z-index: 10;
-      width: 100%;
-      max-width: 460px;
-      padding: 3rem;
-      background: #FFFFFF;
-      border-radius: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.06);
+      z-index: 1;
+      width: min(100%, 470px);
+      padding: 36px;
+      border-radius: 24px;
+      background: rgba(255,255,255,.97);
+      border: 1px solid rgba(148,163,184,.24);
+      box-shadow: 0 28px 70px rgba(30,58,138,.14);
     }
-
-    .logo-area {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-
-    .auth-logo {
-      height: 190px;
-      width: auto;
-      max-width: 100%;
-      object-fit: contain;
-    }
-
-    .logo-text {
-      font-size: 2.5rem;
-      font-weight: 800;
-      color: #1b3f75;
-      letter-spacing: -1px;
-    }
-
-    .logo-text span {
-      color: #2563eb;
-    }
-
-    .card-header {
-      margin-bottom: 2rem;
-    }
-
-    .auth-card-title {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #000000 !important;
-      text-transform: none !important;
-      letter-spacing: 0;
-      margin: 0;
-    }
-
-    .card-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: #64748b;
-      text-transform: none;
-      margin: 0;
-    }
-
-    .card-subtitle {
-      color: #64748b;
-      margin-top: 0.5rem;
-      font-size: 0.95rem;
-    }
-
-    /* Input with embedded icons */
-    .form-group {
-      margin-bottom: 1.25rem;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-      font-size: 0.9rem;
-      color: #334155;
-    }
-
-    .input-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-
-    .input-icon {
-      position: absolute;
-      left: 14px;
-      color: #6b7280;
-    }
-
+    .logo-area { display: flex; justify-content: center; margin-bottom: 16px; }
+    .auth-logo { width: 180px; max-height: 110px; object-fit: contain; }
+    .card-header { text-align: center; margin-bottom: 24px; }
+    .card-header h1 { margin: 0; color: #0f172a; font-size: 1.7rem; }
+    .card-header p { margin: 8px 0 0; color: #64748b; line-height: 1.5; }
+    .auth-form { display: grid; gap: 16px; }
+    .form-group { display: grid; gap: 7px; }
+    label { color: #334155; font-size: .9rem; font-weight: 700; }
+    .input-wrapper { position: relative; display: flex; align-items: center; }
     .form-control {
       width: 100%;
-      padding: 0.75rem 1rem 0.75rem 2.8rem;
+      min-height: 48px;
+      padding: 11px 14px;
+      border-radius: 12px;
       border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 1rem;
-      transition: all 0.2s;
-    }
-
-    .form-control:focus {
+      background: #f8fafc;
+      color: #0f172a;
+      font: inherit;
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      transition: .18s ease;
+      box-sizing: border-box;
     }
-
-    .form-control.has-error {
-      border-color: #ef4444;
-      background-color: #fef2f2;
-    }
-
-    .btn-toggle-pwd {
+    .form-control:not(.password-control):not(.code-input) { }
+    .form-control:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.10); }
+    .form-control.has-error { border-color: #dc2626; background: #fff7f7; }
+    .password-control { padding-right: 48px; }
+    .code-input { padding-left: 14px; text-align: center; letter-spacing: .55em; font-weight: 800; font-size: 1.15rem; }
+    .password-toggle {
       position: absolute;
-      right: 14px;
-      background: none;
-      border: none;
-      color: #6b7280;
-      cursor: pointer;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
       padding: 0;
-      display: flex;
-      align-items: center;
-    }
-
-    .btn-toggle-pwd:hover {
-      color: #1b3f75;
-    }
-
-    /* Checkbox & Options */
-    .options-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: 500;
-      color: #4b5563;
-      font-size: 0.9rem;
-      margin: 0;
-    }
-
-    .forgot-link {
-      font-size: 0.9rem;
-      color: #4b5563;
-      text-decoration: none;
-    }
-    .forgot-link:hover {
-      color: #1b3f75;
-      text-decoration: underline;
-    }
-
-    /* Primary Button */
-    .submit-btn {
-      background: #93c5fd;
-      color: #64748b;
-      padding: 0.85rem;
-      font-size: 1rem;
-      font-weight: 500;
-      text-transform: none;
-      border: none;
-      border-radius: 50px;
-      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #315b91;
       cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 4px 10px rgba(147, 197, 253, 0.35);
     }
-
-    .submit-btn:hover:not(:disabled) {
-      background: #7eb6fc;
-      color: #64748b;
-      transform: translateY(-1px);
+    .password-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    .password-toggle:hover, .password-toggle:focus-visible { background: #eaf2ff; outline: none; }
+    .password-toggle.visible { color: #1e3a8a; }
+    .form-options { display: flex; justify-content: flex-end; margin-top: -4px; }
+    .submit-btn {
+      min-height: 48px;
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      background: #93c5fd;
+      color: #1e3a8a;
+      font-weight: 800;
+      font-size: .98rem;
+      box-shadow: 0 8px 18px rgba(37,99,235,.18);
     }
-
-    .submit-btn:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-
-    /* Text & Links */
-    .terms-text {
-      text-align: center;
-      font-size: 0.75rem;
-      color: #6b7280;
-      margin-bottom: 1.5rem;
-    }
-    .terms-text a {
-      color: #6b7280;
-      text-decoration: underline;
-    }
-    .terms-text a:hover {
-      color: #1b3f75;
-    }
-
-    .auth-switch {
-      text-align: center;
-      font-size: 0.9rem;
-      color: #4b5563;
-    }
-    .auth-switch a {
-      color: #93c5fd;
-      font-weight: 700;
-      text-decoration: none;
-    }
-    .auth-switch a:hover {
-      text-decoration: underline;
-    }
-
-    .error-text {
-      color: #ef4444;
-      font-size: 0.8rem;
-      margin-top: 0.4rem;
-      font-weight: 500;
-    }
-
-    .alert {
-      padding: 1rem;
-      border-radius: 6px;
-      margin-bottom: 1.5rem;
-      font-weight: 500;
-      font-size: 0.9rem;
-    }
-    .alert-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-    .alert-success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-
-    /* Footer outside card */
-    .auth-footer {
-      position: relative;
-      z-index: 10;
-      margin-top: 2rem;
-      text-align: center;
-      font-size: 0.85rem;
-      color: #374151;
-    }
-    .auth-footer p {
-      margin: 0.25rem 0;
-    }
-
-    .spinner {
-      display: inline-block;
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 1s ease-in-out infinite;
-      margin-right: 0.5rem;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    .submit-btn:hover:not(:disabled) { background: #7eb6fc; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: .65; cursor: wait; }
+    .link-button { border: 0; padding: 0; background: transparent; color: #315b91; cursor: pointer; font: inherit; font-size: .9rem; }
+    .link-button:hover { text-decoration: underline; }
+    .link-button.strong { color: #2563eb; font-weight: 800; }
+    .auth-switch, .secondary-links { margin: 0; text-align: center; color: #64748b; font-size: .9rem; }
+    .secondary-links { display: flex; justify-content: center; gap: 10px; align-items: center; }
+    .back-button { border: 0; background: transparent; color: #475569; cursor: pointer; font-weight: 700; }
+    .password-help { color: #64748b; font-size: .78rem; line-height: 1.45; }
+    .error-text { color: #b91c1c; font-size: .8rem; font-weight: 600; }
+    .alert { padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; font-size: .88rem; line-height: 1.45; }
+    .alert-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .reset-summary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 11px 12px; border-radius: 12px; background: #eff6ff; color: #334155; font-size: .86rem; }
+    @media (max-width: 520px) { .auth-card { padding: 26px 20px; border-radius: 18px; } .auth-logo { width: 150px; } }
   `]
 })
 export class LoginComponent {
-  isLoginMode = signal(false); // Show signup by default based on the user screenshot
+  mode = signal<AuthMode>('signup');
   showPassword = signal(false);
-  
-  loginData = { username: '', password: '' };
-  signupData = { username: '', email: '', password: '', role: 'USER' };
-  confirmPasswordValue = '';
-  rememberMe = false;
-
+  showResetPassword = signal(false);
   loading = signal(false);
   errorMsg = signal('');
   successMsg = signal('');
-  
-  validationErrors: any = {};
+
+  loginData = { username: '', password: '' };
+  signupData = { username: '', email: '', password: '', role: 'USER' };
+  confirmPasswordValue = '';
+  resetData = { identifier: '', code: '', newPassword: '', confirmPassword: '' };
+  validationErrors: { username?: string; email?: string; password?: string; confirmPassword?: string } = {};
 
   constructor(private apiService: ApiService, private router: Router) {}
 
-  setMode(isLogin: boolean, event?: Event): void {
-    if (event) event.preventDefault();
-    this.isLoginMode.set(isLogin);
+  setMode(mode: AuthMode): void {
+    this.mode.set(mode);
     this.clearErrors();
     this.successMsg.set('');
   }
 
   togglePassword(): void {
-    this.showPassword.update(v => !v);
+    this.showPassword.update(value => !value);
   }
 
-  clearErrors() {
+  clearErrors(): void {
     this.errorMsg.set('');
     this.validationErrors = {};
   }
 
-  forgotPassword(event: Event) {
-    event.preventDefault();
-    this.successMsg.set("Un lien de réinitialisation vous a été envoyé si cet utilisateur existe.");
-    this.errorMsg.set('');
+  openForgotPassword(): void {
+    this.resetData.identifier = this.loginData.username || this.signupData.email || this.signupData.username || '';
+    this.resetData.code = '';
+    this.resetData.newPassword = '';
+    this.resetData.confirmPassword = '';
+    this.setMode('forgot-request');
   }
 
   onLogin(): void {
     this.clearErrors();
-    let hasError = false;
-
-    if (!this.loginData.username || this.loginData.username.trim() === '') {
-      this.validationErrors.username = "L'identifiant est requis.";
-      hasError = true;
-    }
-    
-    if (!this.loginData.password) {
-      this.validationErrors.password = "Le mot de passe est requis.";
-      hasError = true;
-    }
-
-    if (hasError) {
-      this.errorMsg.set('Veuillez corriger les erreurs dans le formulaire.');
+    const identifier = this.loginData.username.trim();
+    if (!identifier) this.validationErrors.username = "L'identifiant ou l'adresse email est requis.";
+    if (!this.loginData.password) this.validationErrors.password = 'Le mot de passe est requis.';
+    if (Object.keys(this.validationErrors).length) {
+      this.errorMsg.set('Veuillez corriger les champs indiqués.');
       return;
     }
 
     this.loading.set(true);
-
-    this.apiService.login(this.loginData).subscribe({
+    this.apiService.login({ username: identifier, password: this.loginData.password }).subscribe({
       next: () => {
         this.loading.set(false);
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.loading.set(false);
-        if (err.status === 0) {
-          this.errorMsg.set("Serveur injoignable (Failed to fetch). Le backend Spring Boot n'est pas démarré.");
-        } else if (err.status === 401) {
-          this.errorMsg.set("Identifiants incorrects. Veuillez vérifier votre identifiant et mot de passe.");
-        } else if (err.status === 404) {
-          this.errorMsg.set("Cet utilisateur n'existe pas dans le système.");
-        } else {
-          this.errorMsg.set(`Erreur serveur (${err.status}): ${err.message}`);
-        }
+        if (err.status === 0) this.errorMsg.set("Le backend Spring Boot n'est pas joignable sur le port 8081.");
+        else if (err.status === 401) this.errorMsg.set('Identifiant, email ou mot de passe incorrect.');
+        else this.errorMsg.set(err?.error?.message || `Erreur de connexion (${err.status}).`);
       }
     });
   }
 
   onSignup(): void {
     this.clearErrors();
-    let hasError = false;
+    const username = this.signupData.username.trim();
+    const email = this.signupData.email.trim();
+    const password = this.signupData.password;
 
-    if (!this.signupData.username || this.signupData.username.length < 3) {
-      this.validationErrors.username = "Le nom complet est requis (min 3 caractères).";
-      hasError = true;
-    }
-    if (!this.signupData.email || !this.signupData.email.includes('@')) {
-      this.validationErrors.email = "Une adresse e-mail valide est requise.";
-      hasError = true;
-    }
-    if (!this.signupData.password || this.signupData.password.length < 8) {
-      this.validationErrors.password = "Le mot de passe doit faire au moins 8 caractères.";
-      hasError = true;
-    }
-    if (this.signupData.password !== this.confirmPasswordValue) {
-      this.validationErrors.confirmPassword = "Les mots de passe ne correspondent pas.";
-      hasError = true;
-    }
-
-    if (hasError) {
-      this.errorMsg.set('Veuillez corriger les erreurs de saisie ci-dessus.');
+    if (username.length < 3) this.validationErrors.username = 'Le nom doit contenir au moins 3 caractères.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) this.validationErrors.email = 'Saisissez une adresse email valide.';
+    if (!this.isStrongPassword(password)) this.validationErrors.password = 'Le mot de passe ne respecte pas les règles de sécurité.';
+    if (password !== this.confirmPasswordValue) this.validationErrors.confirmPassword = 'Les mots de passe ne correspondent pas.';
+    if (Object.keys(this.validationErrors).length) {
+      this.errorMsg.set('Veuillez corriger les champs indiqués.');
       return;
     }
 
     this.loading.set(true);
-
-    // By default all new users are "USER" in this design (no role selector visible)
-    this.signupData.role = 'USER';
-
-    this.apiService.signup(this.signupData).subscribe({
-      next: (res) => {
+    this.apiService.signup({ username, email, password, role: 'USER' }).subscribe({
+      next: () => {
         this.loading.set(false);
-        this.successMsg.set('Inscription réussie ! Vous pouvez vous connecter.');
-        this.loginData.username = this.signupData.username;
+        this.loginData.username = email;
+        this.loginData.password = '';
         this.signupData = { username: '', email: '', password: '', role: 'USER' };
         this.confirmPasswordValue = '';
-        setTimeout(() => this.setMode(true), 2000);
+        this.mode.set('login');
+        this.successMsg.set('Compte créé. Connectez-vous avec votre nom ou votre adresse email.');
       },
       error: (err) => {
         this.loading.set(false);
-        if (err.status === 0) {
-          this.errorMsg.set("Serveur injoignable (Failed to fetch). Le backend n'est pas démarré.");
-        } else if (err.error && err.error.message) {
-          this.errorMsg.set(`Erreur de création: ${err.error.message}`);
-        } else {
-          this.errorMsg.set("Une erreur inconnue s'est produite lors de l'inscription.");
-        }
+        this.errorMsg.set(err?.error?.message || "Impossible de créer le compte.");
       }
     });
+  }
+
+  requestResetCode(): void {
+    this.clearErrors();
+    const identifier = this.resetData.identifier.trim();
+    if (!identifier) {
+      this.errorMsg.set("Saisissez votre identifiant ou votre adresse email.");
+      return;
+    }
+
+    this.loading.set(true);
+    this.apiService.requestPasswordReset(identifier).subscribe({
+      next: (response) => {
+        this.loading.set(false);
+        this.mode.set('forgot-reset');
+        this.successMsg.set(response.message || 'Le code a été envoyé.');
+      },
+      error: (err) => {
+        this.loading.set(false);
+        if (err.status === 0) this.errorMsg.set("Le backend Spring Boot n'est pas joignable.");
+        else this.errorMsg.set(err?.error?.message || "Impossible d'envoyer le code. Vérifiez la configuration Gmail du backend.");
+      }
+    });
+  }
+
+  submitPasswordReset(): void {
+    this.clearErrors();
+    const identifier = this.resetData.identifier.trim();
+    const code = this.resetData.code.trim();
+    const newPassword = this.resetData.newPassword;
+
+    if (!/^\d{6}$/.test(code)) {
+      this.errorMsg.set('Le code doit contenir exactement 6 chiffres.');
+      return;
+    }
+    if (!this.isStrongPassword(newPassword)) {
+      this.errorMsg.set('Le nouveau mot de passe doit contenir 8 caractères minimum, une majuscule, une minuscule, un chiffre et un caractère spécial.');
+      return;
+    }
+    if (newPassword !== this.resetData.confirmPassword) {
+      this.errorMsg.set('La confirmation du mot de passe ne correspond pas.');
+      return;
+    }
+
+    this.loading.set(true);
+    this.apiService.resetPassword({ identifier, code, newPassword }).subscribe({
+      next: (response) => {
+        this.loading.set(false);
+        this.loginData.username = identifier;
+        this.loginData.password = '';
+        this.resetData = { identifier: '', code: '', newPassword: '', confirmPassword: '' };
+        this.mode.set('login');
+        this.successMsg.set(response.message || 'Mot de passe réinitialisé. Vous pouvez vous connecter.');
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.errorMsg.set(err?.error?.message || 'Code invalide ou expiré.');
+      }
+    });
+  }
+
+  private isStrongPassword(password: string): boolean {
+    return password.length >= 8
+      && /[A-Z]/.test(password)
+      && /[a-z]/.test(password)
+      && /\d/.test(password)
+      && /[@$!%*?&]/.test(password);
   }
 }

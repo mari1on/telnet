@@ -273,7 +273,7 @@
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher par nom, source, ticket, service..." />
-          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
         </label>
         <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
           <option value="ALL">Tous les états</option>
@@ -402,7 +402,7 @@
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="incidentSearch" placeholder="Rechercher un incident, événement ou responsable..." />
-          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'incidents'" (click)="startSearchVoice('incidents')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'incidents'" (click)="startSearchVoice('incidents')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
         </label>
         <select [(ngModel)]="incidentStateFilter" aria-label="Filtrer par état du traitement">
           <option value="ALL">Tous les traitements</option>
@@ -496,7 +496,7 @@
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="logSearch" placeholder="Rechercher un utilisateur ou une action..." />
-          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'logs'" (click)="startSearchVoice('logs')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'logs'" (click)="startSearchVoice('logs')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
         </label>
         <button type="button" class="filter-reset text-reset" (click)="applyLogSearch()">Entrer</button>
         <span class="result-count">{{ getFilteredLogs().length }} résultat(s)</span>
@@ -544,7 +544,13 @@
           <h1 class="view-title">Assistant RSSI</h1>
           <p>Posez une question sur l’événement, ses risques, les cas similaires, les actions recommandées ou le plan d’incident.</p>
         </div>
-        <button type="button" class="filter-reset" (click)="clearAssistantConversation()">Nouvelle conversation</button>
+        <div class="assistant-heading-actions">
+          <button type="button" class="assistant-speech-toggle" [class.enabled]="assistantAutoSpeak()" (click)="toggleAssistantSpeech()" [attr.aria-pressed]="assistantAutoSpeak()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+            {{ assistantAutoSpeak() ? 'Voix activée' : 'Voix désactivée' }}
+          </button>
+          <button type="button" class="filter-reset" (click)="clearAssistantConversation()">Nouvelle conversation</button>
+        </div>
       </div>
 
       <section class="assistant-layout">
@@ -552,7 +558,7 @@
           <h2>Contexte à analyser</h2>
           <label for="assistantEvent">Événement</label>
           <select id="assistantEvent" [(ngModel)]="assistantSelectedEventId">
-            <option [ngValue]="null">Sélectionner un événement</option>
+            <option [ngValue]="null">Vue globale du site</option>
             @for (event of events(); track event.id) {
               <option [ngValue]="event.id">#EV-{{ event.id }} — {{ event.libelleErreur || 'Sans nom' }}</option>
             }
@@ -591,51 +597,62 @@
           </div>
 
           @if (assistantResult(); as result) {
-            <div class="assistant-result-card">
-              <div class="assistant-result-heading">
-                <div>
-                  <span>{{ result.similarFound ? 'Cas similaires trouvés' : 'Aucun cas suffisamment similaire' }}</span>
-                  <strong>{{ result.matches.length }} correspondance(s)</strong>
+            @if (result.matches.length > 0 || result.actions.length > 0) {
+              <div class="assistant-result-card">
+                <div class="assistant-result-heading">
+                  <div>
+                    @if (result.matches.length > 0) {
+                      <span>Cas similaires utiles à cette question</span>
+                      <strong>{{ result.matches.length }} correspondance(s)</strong>
+                    } @else {
+                      <span>Approche proposée</span>
+                      <strong>{{ result.actions.length }} action(s)</strong>
+                    }
+                  </div>
+                  <button type="button" class="assistant-read-button" (click)="speakAssistantAnswer(result.answer)" title="Lire la réponse à voix haute" aria-label="Lire la réponse à voix haute">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                  </button>
                 </div>
-                <small>{{ result.source }}</small>
-              </div>
 
-              @if (result.matches.length > 0) {
-                <div class="assistant-matches">
-                  @for (match of result.matches; track match.eventId) {
-                    <div>
-                      <strong>#EV-{{ match.eventId }} — {{ match.title }}</strong>
-                      <span>Similarité {{ match.score }} % · {{ match.qualification || 'Non qualifié' }}</span>
-                      @if (match.reason) { <small>{{ match.reason }}</small> }
-                    </div>
-                  }
-                </div>
-              }
-
-              <h3>Actions proposées</h3>
-              <ol>
-                @for (action of result.actions; track action) {
-                  <li>{{ action }}</li>
+                @if (result.matches.length > 0) {
+                  <div class="assistant-matches">
+                    @for (match of result.matches; track match.eventId) {
+                      <div>
+                        <strong>#EV-{{ match.eventId }} — {{ match.title }}</strong>
+                        <span>Similarité {{ match.score }} % · {{ match.qualification || 'Non qualifié' }}</span>
+                        @if (match.reason) { <small>{{ match.reason }}</small> }
+                      </div>
+                    }
+                  </div>
                 }
-              </ol>
 
-              <div class="assistant-proposal-actions">
-                <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">
-                  Annuler
-                </button>
-                <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()">
-                  Confirmer et préparer le plan d’incident
-                </button>
+                @if (result.actions.length > 0) {
+                  <h3>Actions proposées</h3>
+                  <ol>
+                    @for (action of result.actions; track action) {
+                      <li>{{ action }}</li>
+                    }
+                  </ol>
+
+                  <div class="assistant-proposal-actions">
+                    <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">Annuler</button>
+                    @if (assistantSelectedEventId) {
+                      <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()">
+                        Confirmer et préparer le plan d’incident
+                      </button>
+                    }
+                  </div>
+                }
               </div>
-            </div>
+            }
           }
 
           <form class="assistant-composer" (ngSubmit)="sendAssistantMessage()">
             <div class="assistant-input-wrap">
               <textarea name="assistantQuestion" [(ngModel)]="assistantQuestion" rows="3" placeholder="Exemple : explique cet événement, quels risques présente-t-il et quelle approche suivre ?"></textarea>
-              <button type="button" class="assistant-voice-button" [class.listening]="activeVoiceSearch() === 'assistant'" (click)="startSearchVoice('assistant')" title="Dicter la question">🎙</button>
+              <button type="button" class="assistant-voice-button" [class.listening]="activeVoiceSearch() === 'assistant'" (click)="startSearchVoice('assistant')" title="Dicter la question"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
             </div>
-            <button type="submit" [disabled]="assistantLoading() || !assistantSelectedEventId">{{ assistantLoading() ? '...' : 'Entrer' }}</button>
+            <button type="submit" [disabled]="assistantLoading()">{{ assistantLoading() ? '...' : 'Entrer' }}</button>
           </form>
         </section>
       </section>
@@ -796,7 +813,7 @@
   </nav>
 
   <div class="header-user">
-    <button class="btn btn-account" (click)="openUserModal()" title="Mon Profil">
+    <button class="btn btn-account" (click)="openSettings()" title="Mon Profil">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
       Mon Profil
     </button>
@@ -979,7 +996,7 @@
         <label class="detector-search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher un événement..." />
-          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix">🎙</button>
+          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
         </label>
         <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
           <option value="ALL">Tous les états</option>
@@ -1226,6 +1243,69 @@
       </div>
     </div>
   }
+
+  @if (activeTab() === 'settings' && !apiService.isRssi()) {
+    <div class="tab-view detector-settings-view">
+      <div class="detector-settings-heading">
+        <span>Profil utilisateur</span>
+        <h1>Mon Compte</h1>
+        <p>Gérez vos informations personnelles et la sécurité de votre compte.</p>
+      </div>
+
+      <section class="detector-settings-card" aria-labelledby="detector-settings-title">
+        <div class="detector-settings-card-header">
+          <h2 id="detector-settings-title">Informations du profil</h2>
+          <p>Les changements sont enregistrés directement dans votre compte TELNET.</p>
+        </div>
+
+        <form class="detector-settings-form" (ngSubmit)="saveUserProfile()">
+          <div class="detector-settings-grid">
+            <div class="settings-field">
+              <label for="detectorSettingsUsername">Nom d'utilisateur</label>
+              <input id="detectorSettingsUsername" type="text" name="detectorSettingsUsername" class="settings-input" [(ngModel)]="userForm.username" autocomplete="name" required />
+            </div>
+            <div class="settings-field">
+              <label for="detectorSettingsEmail">Email</label>
+              <input id="detectorSettingsEmail" type="email" name="detectorSettingsEmail" class="settings-input" [(ngModel)]="userForm.email" autocomplete="email" required />
+            </div>
+            <div class="settings-field">
+              <label for="detectorSettingsRole">Rôle système</label>
+              <input id="detectorSettingsRole" type="text" class="settings-input" [value]="userForm.role" disabled />
+            </div>
+          </div>
+
+          <div class="detector-security-panel">
+            <div class="settings-section-heading">
+              <h3>Changer le mot de passe</h3>
+              <p>Laissez les nouveaux champs vides pour conserver le mot de passe actuel.</p>
+            </div>
+            <div class="detector-settings-grid password-grid">
+              <div class="settings-field">
+                <label for="detectorSettingsCurrentPassword">Mot de passe actuel</label>
+                <input id="detectorSettingsCurrentPassword" type="password" name="detectorSettingsCurrentPassword" class="settings-input" [(ngModel)]="userForm.currentPassword" autocomplete="current-password" />
+              </div>
+              <div class="settings-field">
+                <label for="detectorSettingsNewPassword">Nouveau mot de passe</label>
+                <input id="detectorSettingsNewPassword" type="password" name="detectorSettingsNewPassword" class="settings-input" [(ngModel)]="userForm.newPassword" autocomplete="new-password" placeholder="••••••••" />
+              </div>
+              <div class="settings-field">
+                <label for="detectorSettingsConfirmPassword">Confirmer le mot de passe</label>
+                <input id="detectorSettingsConfirmPassword" type="password" name="detectorSettingsConfirmPassword" class="settings-input" [(ngModel)]="userForm.confirmPassword" autocomplete="new-password" placeholder="••••••••" />
+              </div>
+            </div>
+            <p class="password-rule">8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&amp;).</p>
+          </div>
+
+          <div class="detector-settings-actions">
+            <button type="button" class="detector-settings-back" (click)="switchTab('events')">Retour aux déclarations</button>
+            <button type="submit" class="detector-settings-save" [disabled]="isSubmitting()">
+              {{ isSubmitting() ? 'Enregistrement…' : 'Enregistrer les changements' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  }
 </main>
 }
 
@@ -1381,7 +1461,7 @@
 <!-- FORM MODAL: QUALIFY EVENEMENT (RSSI ONLY) -->
 @if (showQualifyForm()) {
   <div class="modal-backdrop" [class.rssi-modal]="apiService.isRssi()" [class.rssi-light-modal]="apiService.isRssi() && !darkMode()">
-    <div class="modal-card modal-small">
+    <div class="modal-card modal-small qualification-modal-card">
       <div class="modal-header">
         <h3 class="modal-title">{{ selectedEvent()?.qualification === 'NON_QUALIFIE' ? 'Qualification RSSI' : 'Modifier la qualification' }}</h3>
         <button class="btn-close-modal" (click)="showQualifyForm.set(false)">&times;</button>
@@ -1389,7 +1469,7 @@
       <form (ngSubmit)="submitQualification()">
         <div class="modal-body">
           <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin-bottom: 1rem; border-radius: 4px; color: #92400e;">
-            <strong>⚠️ Important:</strong> Vous devez remplir les trois impacts (Confidentialité, Intégrité, Disponibilité) pour pouvoir qualifier l'événement.
+            <strong>⚠️ Important:</strong> Renseignez les trois axes CID. La valeur « Aucun » est acceptée lorsqu’il n’y a pas d’impact.
           </div>
           
           <div class="form-grid">
@@ -1453,9 +1533,71 @@
           <div class="qualification-result" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; font-weight: 600; text-align: center;"
                [style.backgroundColor]="qualifyValue === 'INCIDENT' ? '#fee2e2' : '#dcfce7'"
                [style.color]="qualifyValue === 'INCIDENT' ? '#991b1b' : '#166534'">
-            Résultat de la qualification : 
-            {{ qualifyValue === 'INCIDENT' ? '⚠️ INCIDENT DE SÉCURITÉ' : '✅ CLASSÉ SANS SUITE' }}
+            Résultat de la qualification :
+            {{ qualifyValue === 'INCIDENT' ? 'INCIDENT DE SÉCURITÉ' : 'CLASSÉ SANS SUITE' }}
           </div>
+
+          @if (qualifyValue === 'INCIDENT') {
+            <section class="qualification-risk-section" aria-labelledby="qualification-risk-title">
+              <div class="qualification-risk-heading">
+                <div>
+                  <span class="qualification-step">8</span>
+                  <div>
+                    <h4 id="qualification-risk-title">Risques identifiés suite à l'événement</h4>
+                    <p>Sélectionnez un risque connu ou créez un nouveau risque avec un ID généré automatiquement.</p>
+                  </div>
+                </div>
+                <span class="qualification-risk-count">{{ incidentForm.risques.length }} sélectionné(s)</span>
+              </div>
+
+              <div class="qualification-risk-picker">
+                <div class="qualification-risk-select-group">
+                  <label for="qualificationExistingRisk">Risque existant</label>
+                  <select id="qualificationExistingRisk" name="qualificationExistingRisk" class="form-control" [(ngModel)]="selectedExistingRiskReference">
+                    <option value="">Choisir par ID et description</option>
+                    @for (existingRisk of getExistingRiskCatalog(); track existingRisk.reference) {
+                      <option [value]="existingRisk.reference">{{ getRiskOptionLabel(existingRisk) }}</option>
+                    }
+                  </select>
+                  @if (getSelectedExistingRisk()) {
+                    <div class="qualification-risk-preview">
+                      <strong>{{ getSelectedExistingRisk()?.reference }}</strong>
+                      <p>{{ getSelectedExistingRisk()?.description || 'Aucune description disponible.' }}</p>
+                    </div>
+                  }
+                </div>
+
+                <div class="qualification-risk-actions">
+                  <button type="button" class="btn qualification-add-existing" (click)="addExistingRiskFromCatalog()" [disabled]="!selectedExistingRiskReference">
+                    Ajouter la sélection
+                  </button>
+                  <button type="button" class="btn qualification-new-risk" (click)="addRisque()">
+                    + Nouveau risque
+                  </button>
+                </div>
+              </div>
+
+              @if (incidentForm.risques.length > 0) {
+                <div class="qualification-selected-risks">
+                  @for (risque of incidentForm.risques; track $index; let i = $index) {
+                    <article class="qualification-selected-risk">
+                      <div class="qualification-risk-id">
+                        <span>ID du risque</span>
+                        <strong>{{ risque.reference }}</strong>
+                      </div>
+                      <div class="qualification-risk-description">
+                        <label for="qualificationRiskDescription{{ i }}">Description</label>
+                        <textarea id="qualificationRiskDescription{{ i }}" class="form-control" rows="2" [(ngModel)]="risque.description" name="qualificationRiskDescription{{ i }}" placeholder="Décrivez le risque identifié"></textarea>
+                      </div>
+                      <button type="button" class="qualification-risk-remove" (click)="removeRisque(i)" aria-label="Retirer ce risque">Retirer</button>
+                    </article>
+                  }
+                </div>
+              } @else {
+                <div class="qualification-risk-empty">Aucun risque n'est encore associé à cette qualification.</div>
+              }
+            </section>
+          }
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="showQualifyForm.set(false)">Annuler</button>
@@ -1779,48 +1921,6 @@
           <button type="submit" class="btn btn-primary" style="background: #1b3f75; color: white;">Confirmer</button>
         </div>
       </form>
-    </div>
-  </div>
-}
-
-<!-- FORM MODAL: USER ACCOUNT (MON COMPTE) -->
-@if (showUserModal()) {
-  <div class="modal-backdrop" [class.rssi-modal]="apiService.isRssi()" [class.rssi-light-modal]="apiService.isRssi() && !darkMode()">
-    <div class="modal-card modal-small">
-      <div class="modal-header">
-        <h3 class="modal-title">Mon Compte</h3>
-        <button class="btn-close-modal" (click)="showUserModal.set(false)">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label>Nom d'utilisateur</label>
-          <input type="text" class="form-control" [(ngModel)]="userForm.username" name="profileUsername" />
-        </div>
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label>Email</label>
-          <input type="text" class="form-control" [(ngModel)]="userForm.email" name="profileEmail" />
-        </div>
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label>Rôle Système</label>
-          <input type="text" class="form-control" [value]="userForm.role" disabled style="opacity: 0.7; cursor: not-allowed;" />
-        </div>
-        
-        <div class="form-section-divider">
-          <h4 class="section-title" style="font-size: 0.95rem;">Changer le mot de passe</h4>
-        </div>
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label>Nouveau mot de passe</label>
-          <input type="password" class="form-control" placeholder="••••••••" />
-        </div>
-        <div class="form-group">
-          <label>Confirmer le mot de passe</label>
-          <input type="password" class="form-control" placeholder="••••••••" />
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" (click)="showUserModal.set(false)">Fermer</button>
-        <button class="btn btn-primary" style="background: #1b3f75; color: white;" (click)="saveUserProfile()">Confirmer</button>
-      </div>
     </div>
   </div>
 }

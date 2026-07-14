@@ -5,6 +5,7 @@ import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.security.jwt.JwtUtils;
 import com.example.demo.security.services.UserDetailsImpl;
+import com.example.demo.service.PasswordResetService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -23,15 +24,18 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(AuthenticationManager authenticationManager,
                           UserRepository userRepository,
                           PasswordEncoder encoder,
-                          JwtUtils jwtUtils) {
+                          JwtUtils jwtUtils,
+                          PasswordResetService passwordResetService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.encoder = encoder;
         this.jwtUtils = jwtUtils;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/signin")
@@ -83,6 +87,36 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.ok(new MessageResponse("Utilisateur enregistré avec succès !"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        if (request == null || request.getIdentifier() == null || request.getIdentifier().isBlank()) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Saisissez votre identifiant ou votre adresse email."));
+        }
+        try {
+            passwordResetService.requestReset(request.getIdentifier());
+            return ResponseEntity.ok(new MessageResponse(
+                    "Si un compte correspond, un code à 6 chiffres a été envoyé par email. Le code expire dans 10 minutes."));
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.internalServerError().body(new MessageResponse(ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+        if (request == null) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Données de réinitialisation manquantes."));
+        }
+        try {
+            passwordResetService.resetPassword(
+                    request.getIdentifier(),
+                    request.getCode(),
+                    request.getNewPassword());
+            return ResponseEntity.ok(new MessageResponse("Mot de passe réinitialisé. Vous pouvez maintenant vous connecter."));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(new MessageResponse(ex.getMessage()));
+        }
     }
 
     @PutMapping("/profile")
