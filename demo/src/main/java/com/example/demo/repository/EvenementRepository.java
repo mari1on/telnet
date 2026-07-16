@@ -9,6 +9,11 @@ import java.util.List;
 @Repository
 public interface EvenementRepository extends JpaRepository<Evenement, Long> {
     List<Evenement> findByDeclarePar(String declarePar);
-    boolean existsByIdTicket(String idTicket);
-    boolean existsByCodeErreur(String codeErreur);
+
+    boolean existsByReferenceEvenementIgnoreCase(String referenceEvenement);
+    boolean existsByReferenceEvenementIgnoreCaseAndIdNot(String referenceEvenement, Long id);
+    boolean existsByIdTicketIgnoreCase(String idTicket);
+    boolean existsByCodeErreurIgnoreCase(String codeErreur);
+    boolean existsByIdTicketIgnoreCaseAndIdNot(String idTicket, Long id);
+    boolean existsByCodeErreurIgnoreCaseAndIdNot(String codeErreur, Long id);
 }

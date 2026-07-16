@@ -36,10 +36,10 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
             helper.setFrom(fromEmail);
             helper.setTo(recipient);
-            helper.setSubject("[TELNET] Nouvel événement " + eventReference(event));
+            helper.setSubject("[TELNET] Nouveau signalement #EV-" + event.getId());
             helper.setText(buildNewEventBody(event), false);
             mailSender.send(mimeMessage);
-            log.info("Notification RSSI envoyée à {} pour l'événement {}", recipient, eventReference(event));
+            log.info("Notification RSSI envoyée à {} pour l'événement #{}", recipient, event.getId());
         } catch (Exception ex) {
             log.error("Échec d'envoi de la notification RSSI pour l'événement #{} : {}", event.getId(), ex.getMessage(), ex);
         }
@@ -86,76 +86,28 @@ public class EmailService {
         return """
                 Bonjour,
 
-                Un nouvel événement de sécurité a été déclaré sur la plateforme TELNET.
+                Un nouveau problème a été déclaré sur la plateforme TELNET.
 
-                IDENTIFICATION
-                Référence événement : %s
-                ID technique : %s
-                ID Ticket (Helpdesk) : %s
-                Code erreur : %s
+                Référence : #EV-%d
                 Titre : %s
-
-                DÉTECTION
-                Date et heure : %s
                 Déclaré par : %s
-                Source de détection : %s
-                État : %s
-                Nature : %s
+                Source : %s
+                Date de détection : %s
 
-                PÉRIMÈTRE TECHNIQUE
-                Serveur / OS / API : %s
-                Équipement hardware : %s
-                Type d'actif : %s
-                Actif affecté : %s
-
-                DESCRIPTION DÉTAILLÉE
+                Description :
                 %s
 
-                CAUSES POSSIBLES
-                %s
-
-                COMMENTAIRE DE LA SOURCE
-                %s
-
-                QUALIFICATION CID ACTUELLE
-                Confidentialité : %s
-                Intégrité : %s
-                Disponibilité : %s
-                Qualification : %s
-
-                Connectez-vous à TELNET pour consulter l'événement, compléter la qualification CID et poursuivre le processus de traitement.
+                Connectez-vous à l'application pour qualifier cet événement.
 
                 — Plateforme TELNET Sécurité
                 """.formatted(
-                eventReference(event),
-                event.getId() == null ? "Création en cours" : String.valueOf(event.getId()),
-                nullSafe(event.getIdTicket()),
-                nullSafe(event.getCodeErreur()),
+                event.getId(),
                 nullSafe(event.getLibelleErreur()),
-                nullSafe(String.valueOf(event.getDateHeureDetection())),
                 nullSafe(event.getDeclarePar()),
                 nullSafe(event.getDetecteParSource()),
-                nullSafe(event.getEtat()),
-                nullSafe(event.getNatureEvenement()),
-                nullSafe(event.getServiceOsAppli()),
-                nullSafe(event.getEquipementHardware()),
-                nullSafe(event.getTypeActif()),
-                nullSafe(event.getActifAffecte()),
-                nullSafe(event.getDescriptionDetaillee()),
-                nullSafe(event.getCausesPossibles()),
-                nullSafe(event.getCommentaireSource()),
-                nullSafe(event.getImpactConfidentialite()),
-                nullSafe(event.getImpactIntegrite()),
-                nullSafe(event.getImpactDisponibilite()),
-                nullSafe(event.getQualification())
+                nullSafe(String.valueOf(event.getDateHeureDetection())),
+                nullSafe(event.getDescriptionDetaillee())
         );
-    }
-
-    private String eventReference(Evenement event) {
-        if (event.getReferenceEvenement() != null && !event.getReferenceEvenement().isBlank()) {
-            return event.getReferenceEvenement().trim();
-        }
-        return event.getId() == null ? "EV-NOUVEAU" : "EV-" + event.getId();
     }
 
     private String nullSafe(String value) {

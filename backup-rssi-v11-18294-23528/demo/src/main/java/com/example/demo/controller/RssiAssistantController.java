@@ -24,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -140,43 +139,19 @@ public class RssiAssistantController {
             response.putIfAbsent("pythonCommand", execution.command());
             return ResponseEntity.ok(response);
         } catch (Exception ex) {
-            String fallback = buildTextFallback(request.seed(), request.field(), request.event());
-            return ResponseEntity.ok(Map.of(
-                    "text", fallback,
-                    "engine", "java-fallback",
-                    "modelAvailable", false,
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "message", "La génération locale n'est pas disponible.",
                     "diagnostic", sanitizeDetail(ex.getMessage())
             ));
         }
     }
 
-    private String buildTextFallback(String seed, String field, Map<String, Object> event) {
-        String cleaned = seed == null ? "" : seed.trim().replaceAll("[.!?]+$", "");
-        String title = event == null ? "" : String.valueOf(event.getOrDefault("title", ""));
-        String normalized = normalize(cleaned + " " + title);
-        if (normalized.contains("auth") || normalized.contains("connexion") || normalized.contains("login")) {
-            return cleaned + ". Des anomalies d’authentification ont été observées sur le service concerné et peuvent perturber l’accès des utilisateurs ou signaler une tentative non autorisée. Les journaux de connexion, les comptes touchés et les adresses sources doivent être analysés pour confirmer l’origine et le périmètre.";
-        }
-        if (normalized.contains("reseau") || normalized.contains("vpn") || normalized.contains("panne") || normalized.contains("indisponibilite")) {
-            return cleaned + ". Une dégradation de la connectivité affecte le périmètre concerné et peut interrompre l’accès aux applications ou services métiers. Les équipements, la supervision et les changements récents doivent être vérifiés avant un rétablissement contrôlé.";
-        }
-        return cleaned + ". L’événement nécessite une analyse technique afin d’identifier son origine, le périmètre affecté et les impacts réels sur le service. Les journaux disponibles, les changements récents et les mesures déjà entreprises doivent être documentés avant la qualification.";
-    }
-
     private PythonExecution executeWithAvailablePython(Path script, String inputJson) throws Exception {
-        List<List<String>> commands = new ArrayList<>();
-        commands.add(List.of("py", "-3", "-X", "utf8", script.toString()));
-        commands.add(List.of("python", "-X", "utf8", script.toString()));
-        commands.add(List.of("python3", "-X", "utf8", script.toString()));
-        String localAppData = System.getenv("LOCALAPPDATA");
-        if (localAppData != null && !localAppData.isBlank()) {
-            for (String version : List.of("Python313", "Python312", "Python311", "Python310")) {
-                Path executable = Path.of(localAppData, "Programs", "Python", version, "python.exe");
-                if (Files.isRegularFile(executable)) {
-                    commands.add(0, List.of(executable.toString(), "-X", "utf8", script.toString()));
-                }
-            }
-        }
+        List<List<String>> commands = List.of(
+                List.of("py", "-3", "-X", "utf8", script.toString()),
+                List.of("python", "-X", "utf8", script.toString()),
+                List.of("python3", "-X", "utf8", script.toString())
+        );
 
         List<String> diagnostics = new ArrayList<>();
         for (List<String> command : commands) {
@@ -267,15 +242,11 @@ public class RssiAssistantController {
         Evenement selected = request == null || request.eventId() == null
                 ? null
                 : events.stream().filter(event -> request.eventId().equals(event.getId())).findFirst().orElse(null);
-        if (selected == null) {
-            selected = inferEventForFallback(question, request == null ? List.of() : request.history(), events);
-        }
-        Long selectedEventId = selected == null ? null : selected.getId();
-        Incident selectedIncident = selectedEventId == null
+        Incident selectedIncident = selected == null
                 ? null
                 : incidents.stream()
                         .filter(incident -> incident.getEvenement() != null
-                                && selectedEventId.equals(incident.getEvenement().getId()))
+                                && selected.getId().equals(incident.getEvenement().getId()))
                         .findFirst()
                         .orElse(null);
 
@@ -321,11 +292,11 @@ public class RssiAssistantController {
                             + "; durée d'indisponibilité : " + safe(selectedIncident.getDureeIndisponibilite(), "non renseignée")
                             + "; durée de traitement : " + safe(selectedIncident.getDureeTraitement(), "non renseignée") + ".";
         } else if (normalized.contains("qualification") || normalized.contains("qualifier")) {
-            answer = "Dans Tous les événements, ouvrez Qualifier puis renseignez obligatoirement Confidentialité, Intégrité et Disponibilité avec Mineur, Majeur ou Critique. "
-                    + "Dès qu'au moins un axe est Critique, TELNET classe automatiquement l'événement comme incident et ouvre le plan associé.";
+            answer = "Dans Tous les événements, ouvrez Qualifier, renseignez Confidentialité, Intégrité et Disponibilité, "
+                    + "sélectionnez ou créez les risques, puis validez. Un incident ouvre le plan associé.";
         } else if (normalized.contains("risque")) {
-            answer = "Dans le plan d'incident, choisissez un risque existant par ID et description ou ajoutez une nouvelle ligne. "
-                    + "La description est obligatoire; l'ID du risque peut être saisi manuellement.";
+            answer = "Dans la qualification ou le plan d'incident, choisissez un risque existant par ID et description, "
+                    + "ou créez-en un nouveau. La référence est générée automatiquement.";
         } else if (normalized.contains("audit") || normalized.contains("journal") || normalized.contains("log")) {
             answer = "Le Journal d'audit se recherche par utilisateur, action ou date. Plusieurs mots sont acceptés et les accents sont ignorés.";
         } else if (normalized.contains("profil") || normalized.contains("compte") || normalized.contains("email")
@@ -341,167 +312,20 @@ public class RssiAssistantController {
             answer = "La base contient " + events.size() + " événement(s), " + incidents.size()
                     + " incident(s), dont " + openIncidents + " non clôturé(s), et " + risks + " risque(s).";
         } else {
-            answer = "Je peux analyser les données TELNET actuellement enregistrées et répondre sur les événements, incidents, risques, impacts CID, audits, comptes et procédures. "
-                    + "Décrivez simplement la situation, le titre, le ticket, le code erreur ou le service concerné.";
+            answer = "Le moteur Python n'a pas pu être exécuté. Je peux néanmoins répondre aux procédures principales du site. "
+                    + "Précisez la page ou l'objectif : événement, qualification, incident, risque, audit, profil ou dashboard.";
         }
-
-        List<String> proposedActions = selected == null ? List.of() : fallbackActions(selected);
-        boolean critical = selected != null && isCriticalIncident(selected);
-        boolean asksForPlan = normalized.contains("action") || normalized.contains("approche")
-                || normalized.contains("demarche") || normalized.contains("resoudre")
-                || normalized.contains("solution") || normalized.contains("traitement")
-                || normalized.contains("rempl") || normalized.contains("plan");
-        boolean askToFillIncident = critical && asksForPlan;
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("answer", answer);
-        response.put("selectedEventId", selected == null ? null : selected.getId());
-        response.put("confirmationPrompt", askToFillIncident
-                ? "Voulez-vous que je remplisse le plan d'incident avec cette analyse ?"
-                : "");
-        response.put("askToFillIncident", askToFillIncident);
+        response.put("confirmationPrompt", "");
         response.put("similarFound", false);
         response.put("matches", List.of());
-        response.put("actions", asksForPlan ? proposedActions : List.of());
-        response.put("incidentDraft", askToFillIncident ? fallbackIncidentDraft(selected, selectedIncident, proposedActions) : Map.of());
+        response.put("actions", List.of());
         response.put("source", "Guide TELNET — mode de secours Java");
         response.put("engine", "java-fallback");
         response.put("diagnostic", sanitizeDetail(error.getMessage()));
         return response;
-    }
-
-
-    private Evenement inferEventForFallback(
-            String question,
-            List<Map<String, String>> history,
-            List<Evenement> events
-    ) {
-        if (events == null || events.isEmpty()) return null;
-        StringBuilder contextBuilder = new StringBuilder(question == null ? "" : question);
-        if (history != null) {
-            int start = Math.max(0, history.size() - 6);
-            for (int index = start; index < history.size(); index++) {
-                Map<String, String> message = history.get(index);
-                if (message != null) contextBuilder.append(' ').append(message.getOrDefault("text", ""));
-            }
-        }
-        String context = normalize(contextBuilder.toString());
-        Evenement exact = events.stream().filter(event -> {
-            String reference = normalize(event.getReferenceEvenement());
-            String ticket = normalize(event.getIdTicket());
-            String errorCode = normalize(event.getCodeErreur());
-            return (!reference.isBlank() && context.contains(reference))
-                    || (!ticket.isBlank() && context.contains(ticket))
-                    || (!errorCode.isBlank() && context.contains(errorCode));
-        }).findFirst().orElse(null);
-        if (exact != null) return exact;
-
-        Evenement best = null;
-        double bestScore = 0.0;
-        for (Evenement event : events) {
-            String data = normalize(String.join(" ",
-                    safe(event.getReferenceEvenement(), ""),
-                    safe(event.getLibelleErreur(), ""),
-                    safe(event.getDescriptionDetaillee(), ""),
-                    safe(event.getIdTicket(), ""),
-                    safe(event.getCodeErreur(), ""),
-                    safe(event.getServiceOsAppli(), ""),
-                    safe(event.getNatureEvenement(), "")
-            ));
-            double score = tokenOverlap(context, data);
-            if (score > bestScore || (score == bestScore && best != null && event.getId() != null
-                    && best.getId() != null && event.getId() > best.getId())) {
-                best = event;
-                bestScore = score;
-            }
-        }
-        return bestScore >= 0.16 ? best : null;
-    }
-
-    private double tokenOverlap(String left, String right) {
-        java.util.Set<String> leftTokens = new java.util.HashSet<>(List.of(left.split("\\s+")));
-        java.util.Set<String> rightTokens = new java.util.HashSet<>(List.of(right.split("\\s+")));
-        leftTokens.removeIf(token -> token.length() < 3);
-        rightTokens.removeIf(token -> token.length() < 3);
-        if (leftTokens.isEmpty() || rightTokens.isEmpty()) return 0.0;
-        long common = leftTokens.stream().filter(rightTokens::contains).count();
-        return (double) common / (double) leftTokens.size();
-    }
-
-    private boolean isCriticalIncident(Evenement event) {
-        if (event == null) return false;
-        boolean complete = List.of(
-                safe(event.getImpactConfidentialite(), ""),
-                safe(event.getImpactIntegrite(), ""),
-                safe(event.getImpactDisponibilite(), "")
-        ).stream().allMatch(value -> Set.of("Mineur", "Majeur", "Critique").contains(value));
-        return complete && ("Critique".equals(event.getImpactConfidentialite())
-                || "Critique".equals(event.getImpactIntegrite())
-                || "Critique".equals(event.getImpactDisponibilite()));
-    }
-
-    private List<String> fallbackActions(Evenement event) {
-        String context = normalize(String.join(" ", safe(event.getLibelleErreur(), ""),
-                safe(event.getDescriptionDetaillee(), ""), safe(event.getServiceOsAppli(), "")));
-        if (context.contains("auth") || context.contains("connexion") || context.contains("login")) {
-            return List.of(
-                    "Identifier les comptes, adresses sources et plages horaires concernés dans les journaux.",
-                    "Bloquer ou réinitialiser les accès suspects sans interrompre les comptes légitimes.",
-                    "Corriger le mécanisme d'authentification puis surveiller les nouvelles tentatives."
-            );
-        }
-        if (context.contains("reseau") || context.contains("vpn") || context.contains("panne") || context.contains("indisponibilite")) {
-            return List.of(
-                    "Vérifier la supervision, les équipements réseau et les dernières modifications.",
-                    "Isoler le composant défaillant et activer une solution de secours si elle existe.",
-                    "Rétablir progressivement le service puis surveiller sa stabilité."
-            );
-        }
-        return List.of(
-                "Confirmer le périmètre, les actifs touchés et les impacts CID avec les preuves disponibles.",
-                "Collecter les journaux et appliquer une mesure d'atténuation réversible.",
-                "Tester le retour à la normale, documenter la cause et définir une action préventive."
-        );
-    }
-
-    private Map<String, Object> fallbackIncidentDraft(
-            Evenement event,
-            Incident incident,
-            List<String> actions
-    ) {
-        Map<String, Object> draft = new LinkedHashMap<>();
-        draft.put("typesIncident", incident != null && incident.getTypesIncident() != null
-                ? incident.getTypesIncident() : List.of("Défaillance technique"));
-        draft.put("niveauImpact", incident != null && incident.getNiveauImpact() != null
-                ? incident.getNiveauImpact() : "NIVEAU_4");
-        draft.put("dureeIndisponibilite", incident == null ? "" : safe(incident.getDureeIndisponibilite(), ""));
-        draft.put("mesureAction", incident == null ? actions.get(0) : safe(incident.getMesureAction(), actions.get(0)));
-        draft.put("mesureEtat", incident == null ? "En cours" : safe(incident.getMesureEtat(), "En cours"));
-        draft.put("traitementAction", incident == null ? String.join("\n", actions) : safe(incident.getTraitementAction(), String.join("\n", actions)));
-        draft.put("traitementEtat", incident == null ? "En cours" : safe(incident.getTraitementEtat(), "En cours"));
-        draft.put("preconisation", incident == null ? "Vérifier les preuves, tester le retour à la normale et renforcer la prévention." : safe(incident.getPreconisation(), ""));
-        draft.put("actionCorrective", incident == null ? "Documenter la cause racine et prévenir la récidive." : safe(incident.getActionCorrective(), ""));
-        draft.put("impactContinuite", "Critique".equals(event.getImpactDisponibilite()));
-        draft.put("impactContinuiteDescription", "Impact sur la continuité à confirmer avec la supervision et les utilisateurs concernés.");
-        draft.put("changementDeclenche", false);
-        draft.put("changementDeclencheDescription", "");
-        draft.put("risques", incident == null || incident.getRisques() == null
-                ? List.of(Map.of("reference", "", "description", "Risque à préciser selon le périmètre et les impacts observés."))
-                : incident.getRisques().stream().map(risk -> Map.of(
-                        "reference", safe(risk.getReference(), ""),
-                        "description", safe(risk.getDescription(), "Risque à préciser")
-                )).toList());
-        return draft;
-    }
-
-    private String normalize(String value) {
-        return java.text.Normalizer.normalize(
-                        value == null ? "" : value.toLowerCase(Locale.ROOT),
-                        java.text.Normalizer.Form.NFD
-                )
-                .replaceAll("\\p{M}+", "")
-                .replaceAll("[^a-z0-9]+", " ")
-                .trim();
     }
 
     private String safe(String value, String fallback) {
@@ -511,7 +335,7 @@ public class RssiAssistantController {
     private Map<String, Object> siteKnowledge() {
         return Map.of(
                 "pages", List.of("Dashboard RSSI", "Tous les événements", "Plan d'incidents", "Journal d'audits", "Assistant RSSI", "Settings"),
-                "eventWorkflow", "Un détecteur déclare un événement, l'envoie au RSSI, puis le RSSI qualifie les impacts CID. Un événement devient un incident lorsque les trois impacts CID sont renseignés et qu’au moins un impact est Critique.",
+                "eventWorkflow", "Un détecteur déclare un événement, l'envoie au RSSI, puis le RSSI qualifie les impacts CID. Un impact majeur ou critique peut conduire à un incident.",
                 "incidentWorkflow", "Le plan contient les mesures d'atténuation, le traitement, les risques, les actions correctives, le suivi et les durées.",
                 "roles", "USER correspond au détecteur. ADMIN, ROLE_ADMIN ou RSSI correspondent au RSSI.",
                 "search", "Les pages événements, incidents et audits peuvent être filtrées par texte ou par voix.",
@@ -522,7 +346,6 @@ public class RssiAssistantController {
     private Map<String, Object> eventToMap(Evenement event) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", event.getId());
-        data.put("reference", event.getReferenceEvenement());
         data.put("title", event.getLibelleErreur());
         data.put("description", event.getDescriptionDetaillee());
         data.put("date", event.getDateHeureDetection());

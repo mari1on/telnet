@@ -43,13 +43,8 @@ public class IncidentService {
             }
             evenementRepository.findById(eventId).ifPresent(incident::setEvenement);
         }
-        validateRisks(incident.getRisques());
         if (incident.getRisques() != null) {
-            incident.getRisques().forEach(r -> {
-                r.setReference(normalizeOptionalReference(r.getReference()));
-                r.setDescription(r.getDescription().trim());
-                r.setIncident(incident);
-            });
+            incident.getRisques().forEach(r -> r.setIncident(incident));
         }
         refreshDerivedDurations(incident);
         Incident saved = incidentRepository.save(incident);
@@ -111,15 +106,12 @@ public class IncidentService {
             existing.setMiseAJourPcaNecessaire(details.getMiseAJourPcaNecessaire());
             existing.setReferencePca(details.getReferencePca());
 
-            validateRisks(details.getRisques());
             if (details.getRisques() == null || details.getRisques().isEmpty()) {
                 existing.getRisques().clear();
             } else {
                 List<com.example.demo.entity.Risque> current = existing.getRisques();
                 current.removeIf(r -> details.getRisques().stream().noneMatch(dr -> dr.getId() != null && dr.getId().equals(r.getId())));
                 for (com.example.demo.entity.Risque newOrUpdated : details.getRisques()) {
-                    newOrUpdated.setReference(normalizeOptionalReference(newOrUpdated.getReference()));
-                    newOrUpdated.setDescription(newOrUpdated.getDescription().trim());
                     if (newOrUpdated.getId() == null) {
                         newOrUpdated.setIncident(existing);
                         current.add(newOrUpdated);
@@ -183,21 +175,6 @@ public class IncidentService {
             return true;
         }).orElse(false);
     }
-    private void validateRisks(List<com.example.demo.entity.Risque> risks) {
-        if (risks == null) return;
-        for (int index = 0; index < risks.size(); index++) {
-            var risk = risks.get(index);
-            if (risk == null || risk.getDescription() == null || risk.getDescription().isBlank()) {
-                throw new IllegalArgumentException("La description du risque n°" + (index + 1) + " est obligatoire.");
-            }
-        }
-    }
-
-    private String normalizeOptionalReference(String value) {
-        if (value == null || value.isBlank()) return null;
-        return value.trim();
-    }
-
     private void refreshDerivedDurations(Incident incident) {
         if (incident.getEvenement() == null || incident.getEvenement().getDateHeureDetection() == null) {
             return;

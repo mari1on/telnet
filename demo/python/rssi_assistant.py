@@ -1,529 +1,555 @@
 #!/usr/bin/env python3
-"""Assistant RSSI local et déterministe.
+"""Assistant RSSI TELNET.
 
-Entrée JSON sur stdin, sortie JSON sur stdout. Aucun appel réseau et aucune
-bibliothèque externe. Le moteur répond uniquement à partir des données TELNET
-transmises par Spring Boot et d'un guide fonctionnel intégré.
+Le moteur charge les événements et incidents courants à chaque question. Il utilise
+un modèle local Ollama lorsqu'il est disponible et un mode de secours déterministe
+sinon. Aucune donnée n'est envoyée vers un service cloud par ce script.
 """
-
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import time
 import unicodedata
+import urllib.error
+import urllib.request
 from difflib import SequenceMatcher
-from typing import Any, Iterable
+from pathlib import Path
+from typing import Any
 
-STOP_WORDS = {
-    "a", "ai", "au", "aux", "avec", "ce", "ces", "cette", "dans", "de", "des",
-    "du", "elle", "en", "est", "et", "il", "je", "la", "le", "les", "leur", "mais",
-    "me", "mes", "mon", "ne", "nous", "on", "ou", "par", "pas", "plus", "pour",
-    "que", "qui", "se", "son", "sur", "un", "une", "vous", "the", "is", "are",
-    "of", "to", "in", "and", "for", "with", "what", "how", "why", "can", "do",
-}
+MODEL = os.environ.get("TELNET_AI_MODEL", "qwen2.5:3b")
+OLLAMA_URL = os.environ.get("TELNET_OLLAMA_URL", "http://127.0.0.1:11434")
+TIMEOUT = int(os.environ.get("TELNET_AI_TIMEOUT_SECONDS", "120"))
 
-SYNONYMS: dict[str, set[str]] = {
-    "authentification": {"authentification", "authentication", "login", "connexion", "acces", "credential", "identifiant"},
-    "motdepasse": {"password", "passwd", "mdp", "motdepasse"},
-    "reseau": {"reseau", "network", "connectivite", "vpn", "firewall", "parefeu"},
-    "indisponibilite": {"indisponibilite", "panne", "outage", "down", "downtime", "timeout", "interruption", "coupure"},
-    "serveur": {"serveur", "server", "machine", "host", "vm"},
-    "malware": {"malware", "virus", "ransomware", "trojan", "phishing", "hameconnage"},
-    "correctif": {"patch", "correctif", "miseajour", "update", "upgrade"},
-    "risque": {"risque", "risques", "menace", "menaces", "danger", "dangers", "risk", "risks"},
-    "similaire": {"similaire", "similaires", "semblable", "historique", "precedent", "recurrence", "deja", "similar"},
-    "action": {"action", "actions", "approche", "solution", "resoudre", "traiter", "corriger", "recommandation", "recommend"},
-    "expliquer": {"explique", "expliquer", "resume", "resumer", "comprendre", "signifie", "definition", "explain", "summary"},
-    "cause": {"cause", "causes", "origine", "pourquoi", "racine", "rootcause", "why"},
-    "incident": {"incident", "incidents", "plan", "traitement"},
-    "evenement": {"evenement", "evenements", "event", "events", "declaration", "signalement"},
-    "qualification": {"qualification", "qualifier", "classer", "classification"},
-    "compte": {"compte", "profil", "email", "password", "motdepasse", "settings", "parametres"},
-    "audit": {"audit", "journal", "log", "logs", "trace"},
-    "recherche": {"recherche", "chercher", "search", "filtre", "filter", "micro", "voix", "voice"},
-    "supprimer": {"supprimer", "effacer", "delete", "remove"},
-    "creer": {"creer", "ajouter", "nouveau", "create", "add"},
-}
-CANONICAL = {variant: canonical for canonical, variants in SYNONYMS.items() for variant in variants}
+SITE_GUIDE = """
+TELNET gère les événements de sécurité, leur qualification CID et les plans d'incident.
+Le détecteur utilise Mes Déclarations et Mon Profil. Le RSSI utilise Dashboard, Tous les
+événements, Plan d'incidents, Journal d'audits, Assistant RSSI et Settings.
+Un détecteur crée un événement, complète le ticket et le code erreur, puis l'envoie au
+RSSI. Le RSSI doit renseigner les trois impacts Confidentialité, Intégrité et
+Disponibilité avec Mineur, Majeur ou Critique. Si au moins un impact est Critique,
+l'événement est classé INCIDENT et le plan d'incident doit s'ouvrir. Sinon il est
+classé NON_INCIDENT. Le plan contient atténuation, traitement, actions correctives,
+continuité, PCA, risques, efficacité et suivi. La description d'un risque est
+obligatoire; son ID peut être saisi manuellement. Les recherches acceptent le texte
+et la voix. Le profil permet de modifier le nom, l'email et le mot de passe.
+""".strip()
 
 
 def normalize(value: Any) -> str:
-    text = unicodedata.normalize("NFD", str(value or "").casefold())
+    text = unicodedata.normalize("NFD", str(value or "").lower())
     text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
-    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", text)).strip()
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
 def tokens(value: Any) -> set[str]:
+    stop = {
+        "le", "la", "les", "un", "une", "des", "de", "du", "et", "ou", "a",
+        "au", "aux", "dans", "sur", "pour", "avec", "ce", "cet", "cette", "est",
+        "sont", "je", "tu", "il", "elle", "nous", "vous", "me", "moi", "the", "an",
+        "and", "or", "of", "to", "in", "on", "for", "is", "are", "what", "how",
+    }
+    synonyms = {
+        "authentication": "authentification", "login": "authentification",
+        "network": "reseau", "connectivity": "reseau", "outage": "indisponibilite",
+        "downtime": "indisponibilite", "risk": "risque", "risks": "risque",
+        "event": "evenement", "events": "evenement", "incident": "incident",
+        "critical": "critique", "major": "majeur", "minor": "mineur",
+        "availability": "disponibilite", "integrity": "integrite",
+        "confidentiality": "confidentialite", "failure": "echec", "failed": "echec",
+    }
     result: set[str] = set()
-    for token in normalize(value).split():
-        if len(token) < 2 or token in STOP_WORDS:
-            continue
-        result.add(CANONICAL.get(token, token))
+    for part in normalize(value).split():
+        if len(part) > 1 and part not in stop:
+            result.add(synonyms.get(part, part))
     return result
 
 
-def first_non_empty(*values: Any, fallback: str = "non renseigné") -> str:
-    for value in values:
-        if value is not None and str(value).strip():
-            return str(value).strip()
-    return fallback
-
-
-def unique_strings(values: Iterable[Any]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        text = str(value or "").strip()
-        key = normalize(text)
-        if text and key and key not in seen:
-            seen.add(key)
-            result.append(text)
-    return result
-
-
-def event_text(event: dict[str, Any]) -> str:
-    return " ".join(str(event.get(key) or "") for key in (
-        "id", "title", "description", "source", "declaredBy", "ticket", "nature",
-        "service", "equipment", "errorCode", "possibleCauses", "state", "qualification",
-        "confidentiality", "integrity", "availability",
-    ))
-
-
-def similarity_text(left: str, right: str) -> float:
-    lt = tokens(left)
-    rt = tokens(right)
+def similarity(left: Any, right: Any) -> float:
+    lt, rt = tokens(left), tokens(right)
     union = lt | rt
     jaccard = len(lt & rt) / len(union) if union else 0.0
     sequence = SequenceMatcher(None, normalize(left), normalize(right)).ratio()
     return 0.78 * jaccard + 0.22 * sequence
 
 
-def is_greeting(question: str) -> bool:
-    q = normalize(question)
-    return bool(re.fullmatch(r"(?:bonjour|bonsoir|salut|hello|hi|hey|coucou)(?: comment ca va)?", q))
+def event_text(event: dict[str, Any]) -> str:
+    return " ".join(str(event.get(key) or "") for key in (
+        "id", "reference", "title", "description", "source", "declaredBy", "ticket",
+        "nature", "service", "equipment", "errorCode", "possibleCauses", "state",
+        "qualification", "confidentiality", "integrity", "availability",
+    ))
 
 
-def is_thanks(question: str) -> bool:
-    q = normalize(question)
-    return any(term in q for term in ("merci", "thanks", "thank you")) and len(q.split()) <= 7
+def incident_text(incident: dict[str, Any]) -> str:
+    return " ".join(str(incident.get(key) or "") for key in (
+        "id", "eventId", "types", "impactLevel", "downtime", "mitigationAction",
+        "treatmentAction", "recommendation", "correctiveAction", "risks",
+    ))
 
 
-def select_event(events: list[dict[str, Any]], selected_id: Any, question: str) -> dict[str, Any] | None:
-    if selected_id is not None:
-        selected = next((event for event in events if str(event.get("id")) == str(selected_id)), None)
-        if selected:
-            return selected
-
-    explicit_ids = re.findall(r"(?:#?ev[- ]?|evenement\s*#?|event\s*#?)(\d+)", normalize(question))
-    for event_id in explicit_ids:
-        selected = next((event for event in events if str(event.get("id")) == event_id), None)
-        if selected:
-            return selected
-
-    q_tokens = tokens(question)
-    event_signal = q_tokens & {
-        "evenement", "expliquer", "cause", "risque", "similaire", "action", "incident",
-        "reseau", "authentification", "indisponibilite", "serveur", "malware",
-    }
-    if not event_signal or len(q_tokens) < 2:
+def compact_event(event: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not event:
         return None
+    return {key: event.get(key) for key in (
+        "id", "reference", "title", "description", "date", "source", "declaredBy",
+        "ticket", "nature", "service", "equipment", "errorCode", "possibleCauses",
+        "state", "qualification", "confidentiality", "integrity", "availability",
+    )}
+
+
+def compact_incident(incident: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not incident:
+        return None
+    return {key: incident.get(key) for key in (
+        "id", "eventId", "types", "impactLevel", "downtime", "mitigationAction",
+        "mitigationState", "treatmentAction", "treatmentState", "treatmentDuration",
+        "recommendation", "correctiveAction", "effectiveness", "effectivenessComment",
+        "similarEvents", "similarEventsDescription", "followUpComments", "risks",
+    )}
+
+
+def select_event(events: list[dict[str, Any]], selected_id: Any, question: str,
+                 history: list[dict[str, Any]]) -> dict[str, Any] | None:
+    q = normalize(question)
+    explicit = re.search(r"(?:#?ev[- _:]*)?(\d{1,9})", q)
+    if explicit and ("ev" in q or "evenement" in q or "event" in q or "#" in question):
+        for event in events:
+            if str(event.get("id")) == explicit.group(1):
+                return event
+
+    # Business reference, ticket or error code exact/partial match.
+    for event in events:
+        for key in ("reference", "ticket", "errorCode"):
+            value = normalize(event.get(key))
+            if value and (value in q or q in value) and len(q) >= 3:
+                return event
+
+    contextual = question
+    if len(tokens(question)) <= 4 and history:
+        contextual = " ".join(str(item.get("text") or "") for item in history[-4:]) + " " + question
 
     ranked = sorted(
-        ((similarity_text(question, event_text(event)), event) for event in events),
-        key=lambda item: item[0],
-        reverse=True,
+        ((
+            similarity(contextual, event_text(event))
+            + (0.04 if normalize(event.get("qualification")) in {"", "non qualifie", "non_qualifie"} else 0.0),
+            event,
+        ) for event in events),
+        key=lambda item: (item[0], int(item[1].get("id") or 0)), reverse=True,
     )
-    return ranked[0][1] if ranked and ranked[0][0] >= 0.23 else None
+    if ranked and ranked[0][0] >= 0.14:
+        return ranked[0][1]
+
+    if selected_id is not None:
+        return next((event for event in events if str(event.get("id")) == str(selected_id)), None)
+    return None
 
 
 def related_incident(incidents: list[dict[str, Any]], event_id: Any) -> dict[str, Any] | None:
-    return next((incident for incident in incidents if str(incident.get("eventId")) == str(event_id)), None)
+    return next((item for item in incidents if str(item.get("eventId")) == str(event_id)), None)
 
 
-def infer_risks(event: dict[str, Any]) -> list[str]:
-    context = normalize(event_text(event))
-    risks: list[str] = []
-    if any(term in context for term in ("authentification", "login", "acces", "compte")):
-        risks += ["accès non autorisé", "compromission ou verrouillage de comptes", "indisponibilité du service d’authentification"]
-    if any(term in context for term in ("reseau", "vpn", "serveur", "indisponibilite", "panne")):
-        risks += ["interruption de service", "perte de connectivité", "retard ou perte de transactions en cours"]
-    if any(term in context for term in ("malware", "virus", "ransomware", "phishing")):
-        risks += ["propagation de la menace", "exfiltration ou chiffrement de données", "compromission d’identifiants"]
-    if not risks:
-        risks += ["dégradation du service", "impact sur les utilisateurs", "récidive si la cause racine n’est pas corrigée"]
-    return unique_strings(risks)
+def cid_classification(event: dict[str, Any] | None) -> tuple[str, bool]:
+    if not event:
+        return "NON_RENSEIGNE", False
+    values = [event.get("confidentiality"), event.get("integrity"), event.get("availability")]
+    normalized = [normalize(value) for value in values]
+    allowed = {"mineur", "majeur", "critique"}
+    complete = all(value in allowed for value in normalized)
+    if not complete:
+        return "INCOMPLET", False
+    incident = "critique" in normalized
+    return ("INCIDENT" if incident else "NON_INCIDENT"), incident
 
 
-def baseline_actions(event: dict[str, Any]) -> list[str]:
-    context = normalize(event_text(event))
-    actions = ["Conserver les journaux, heures, captures et éléments techniques utiles à l’analyse."]
-    if any(term in context for term in ("authentification", "login", "acces", "compte")):
-        actions += [
-            "Vérifier les journaux d’authentification, les comptes concernés et les adresses sources.",
-            "Bloquer temporairement les accès suspects et réinitialiser les identifiants exposés.",
-            "Contrôler les règles MFA, de verrouillage et les droits des comptes sensibles.",
-        ]
-    elif any(term in context for term in ("reseau", "vpn", "serveur", "indisponibilite", "panne")):
-        actions += [
-            "Vérifier l’état des équipements, liens, services et dernières modifications de configuration.",
-            "Isoler le composant défaillant et activer une solution de secours si elle existe.",
-            "Rétablir le service progressivement puis surveiller la stabilité et les erreurs résiduelles.",
-        ]
-    elif any(term in context for term in ("malware", "virus", "ransomware", "phishing")):
-        actions += [
-            "Isoler les équipements ou comptes potentiellement compromis.",
-            "Collecter les indicateurs de compromission et analyser journaux, fichiers et connexions.",
-            "Éradiquer la menace, appliquer les correctifs et valider l’intégrité avant remise en service.",
-        ]
-    else:
-        actions += [
-            "Qualifier le périmètre, les utilisateurs affectés et les impacts confidentialité, intégrité et disponibilité.",
-            "Identifier la cause racine et appliquer une mesure d’atténuation réversible.",
-            "Tester le retour à la normale et documenter une action préventive.",
-        ]
-    return unique_strings(actions)
-
-
-def find_similar(selected: dict[str, Any], events: list[dict[str, Any]], question: str) -> list[dict[str, Any]]:
+def find_similar(events: list[dict[str, Any]], event: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
     ranked: list[tuple[float, dict[str, Any]]] = []
     for candidate in events:
-        if candidate.get("id") == selected.get("id"):
+        if str(candidate.get("id")) == str(event.get("id")):
             continue
-        score = similarity_text(f"{question} {event_text(selected)}", event_text(candidate))
-        for field, boost in (("errorCode", .20), ("service", .14), ("nature", .12), ("equipment", .08)):
-            left = normalize(selected.get(field))
-            right = normalize(candidate.get(field))
-            if left and right and left == right:
-                score += boost
-        if score >= .16:
+        score = similarity(event_text(event), event_text(candidate))
+        if event.get("errorCode") and normalize(event.get("errorCode")) == normalize(candidate.get("errorCode")):
+            score += 0.18
+        if event.get("service") and normalize(event.get("service")) == normalize(candidate.get("service")):
+            score += 0.08
+        if event.get("title") and normalize(event.get("title")) == normalize(candidate.get("title")):
+            score += 0.12
+        if score >= 0.20:
             ranked.append((min(score, 1.0), candidate))
     ranked.sort(key=lambda item: item[0], reverse=True)
     return [
         {
-            "eventId": candidate.get("id"),
-            "title": first_non_empty(candidate.get("title"), fallback="Sans nom"),
-            "date": candidate.get("date"),
-            "score": round(score * 100),
-            "qualification": candidate.get("qualification"),
-            "reason": "titre, contexte, service, nature ou code erreur en commun",
+            "eventId": item.get("id"), "title": item.get("title") or "Sans titre",
+            "date": item.get("date"), "score": round(score * 100),
+            "qualification": item.get("qualification") or "NON_QUALIFIE",
+            "reason": "titre, service, code erreur ou contexte en commun",
         }
-        for score, candidate in ranked[:5]
+        for score, item in ranked[:limit]
     ]
 
 
-HELP_TOPICS: list[dict[str, Any]] = [
-    {
-        "title": "Connexion et inscription",
-        "keywords": "connexion connecter login inscription inscrire compte acces identifiant email",
-        "answer": "Sur la page d’authentification, utilisez Se connecter avec le nom d’utilisateur ou l’email. S’inscrire sert uniquement à créer un nouveau compte.",
-    },
-    {
-        "title": "Mot de passe oublié",
-        "keywords": "mot de passe oublie code email reset recuperer connexion",
-        "answer": "Le lien Mot de passe oublié est disponible sur la page Se connecter. Saisissez votre identifiant ou email, recevez le code à six chiffres, puis définissez un nouveau mot de passe.",
-    },
-    {
-        "title": "Déclarer un événement",
-        "keywords": "declarer ajouter creer evenement signalement probleme detecteur formulaire",
-        "answer": "Dans Mes Déclarations ou Tous les événements, cliquez sur Déclarer un problème, complétez les champs obligatoires puis enregistrez. Le ticket et le code erreur sont générés automatiquement.",
-    },
-    {
-        "title": "Envoyer au RSSI",
-        "keywords": "envoyer rssi notification mail detecteur evenement",
-        "answer": "Le détecteur enregistre d’abord un événement complet, puis utilise l’action Envoyer au RSSI. Le statut Envoyé apparaît ensuite dans la ligne.",
-    },
-    {
-        "title": "Qualification CID",
-        "keywords": "qualification qualifier confidentialite integrite disponibilite cid incident classer",
-        "answer": "Dans Tous les événements, ouvrez Qualifier, renseignez les trois impacts CID et leurs commentaires. Un impact majeur ou critique classe l’événement comme incident et ouvre le plan associé.",
-    },
-    {
-        "title": "Risques",
-        "keywords": "risque risques selectionner existant nouveau id reference description",
-        "answer": "Dans la qualification ou le plan d’incident, sélectionnez un risque existant par ID et description, ou créez un nouveau risque. Son ID est généré automatiquement et sa description reste modifiable.",
-    },
-    {
-        "title": "Plan d’incident",
-        "keywords": "plan incident attenuation traitement corrective suivi duree indisponibilite",
-        "answer": "Le Plan d’incidents centralise les mesures d’atténuation, le traitement, les durées, les risques, les actions correctives et le suivi. Ouvrez la ligne avec le bouton de gestion, puis enregistrez.",
-    },
-    {
-        "title": "Suppression",
-        "keywords": "supprimer effacer delete incident evenement corbeille",
-        "answer": "Utilisez la corbeille de la ligne concernée puis confirmez. La suppression d’un incident détache son événement et le remet en attente de qualification.",
-    },
-    {
-        "title": "Journal d’audit",
-        "keywords": "journal audit logs historique action utilisateur date recherche",
-        "answer": "Le Journal d’audit affiche l’horodatage, l’utilisateur et l’action. La recherche accepte plusieurs mots, les accents et les dates françaises.",
-    },
-    {
-        "title": "Recherche vocale",
-        "keywords": "recherche micro microphone voix dictee parole speech",
-        "answer": "Cliquez sur le microphone, autorisez son accès dans le navigateur et dictez en français. Le texte reconnu est placé dans la recherche ou dans la question de l’assistant.",
-    },
-    {
-        "title": "Profil et sécurité",
-        "keywords": "profil compte settings email mot de passe role utilisateur changer",
-        "answer": "Ouvrez Mon Profil ou Settings. Le profil est affiché dans une page du dashboard. Pour changer l’email ou le mot de passe, confirmez avec le mot de passe actuel.",
-    },
-    {
-        "title": "Dashboard RSSI",
-        "keywords": "dashboard statistique kpi carte evenement incident risque impact taux",
-        "answer": "Le Dashboard RSSI synthétise les événements, incidents, risques, impacts critiques, états et temps de traitement à partir des données enregistrées.",
-    },
-    {
-        "title": "Assistant RSSI",
-        "keywords": "assistant chatbot aide question site evenement incident risque approche",
-        "answer": "L’Assistant RSSI répond aux questions sur le fonctionnement du site et analyse les événements, incidents et risques disponibles. Sélectionner un événement améliore les réponses techniques ciblées.",
-    },
-]
+def find_ollama_executable() -> str | None:
+    configured = os.environ.get("OLLAMA_EXE")
+    candidates = [configured, shutil.which("ollama")]
+    local = os.environ.get("LOCALAPPDATA")
+    program_files = os.environ.get("ProgramFiles")
+    if local:
+        candidates.append(str(Path(local) / "Programs" / "Ollama" / "ollama.exe"))
+    if program_files:
+        candidates.append(str(Path(program_files) / "Ollama" / "ollama.exe"))
+    for candidate in candidates:
+        if candidate and (Path(candidate).is_file() or shutil.which(candidate)):
+            return candidate
+    return None
 
 
-def help_answers(question: str) -> list[str]:
-    """Retourne les rubriques du site les plus proches de la question.
-
-    Le score combine les mots-clés canoniques et une similarité de phrase afin
-    de comprendre des formulations courtes, françaises ou anglaises.
-    """
-    q_tokens = tokens(question)
-    normalized_question = normalize(question)
-    ranked: list[tuple[float, dict[str, Any]]] = []
-    for topic in HELP_TOPICS:
-        topic_text = f"{topic['title']} {topic['keywords']} {topic['answer']}"
-        topic_tokens = tokens(topic_text)
-        overlap = len(q_tokens & topic_tokens)
-        coverage = overlap / max(1, len(q_tokens))
-        topic_coverage = overlap / max(1, min(8, len(topic_tokens)))
-        phrase_score = SequenceMatcher(None, normalized_question, normalize(topic_text)).ratio()
-        score = coverage * .65 + topic_coverage * .20 + phrase_score * .15
-        if overlap or phrase_score >= .24:
-            ranked.append((score, topic))
-    ranked.sort(key=lambda item: item[0], reverse=True)
-    if not ranked or ranked[0][0] < .17:
-        return []
-    best = ranked[0][0]
-    selected = [topic for score, topic in ranked if score >= max(.20, best * .68)][:2]
-    return [f"**{topic['title']}** — {topic['answer']}" for topic in selected]
-
-
-def data_overview(events: list[dict[str, Any]], incidents: list[dict[str, Any]]) -> str:
-    open_count = sum(1 for incident in incidents if normalize(incident.get("treatmentState")) not in {"cloture", "clos"})
-    closed_count = len(incidents) - open_count
-    total_risks = sum(len(incident.get("risks") or []) for incident in incidents)
-    classified = sum(1 for event in events if normalize(event.get("qualification")) not in {"", "non qualifie", "non_qualifie"})
-    return (
-        f"**Vue d’ensemble** — {len(events)} événement(s), dont {classified} qualifié(s), "
-        f"{len(incidents)} incident(s), {open_count} non clôturé(s), {closed_count} clôturé(s) "
-        f"et {total_risks} risque(s) associé(s)."
-    )
-
-
-def wants_capabilities(question: str) -> bool:
-    q = normalize(question)
-    expressions = (
-        "que peux tu faire", "qu est ce que tu peux faire", "comment peux tu aider",
-        "a quoi tu sers", "tes fonctions", "tes capacites", "what can you do",
-        "how can you help", "help me use", "aide moi sur le site",
-    )
-    return any(expression in q for expression in expressions)
-
-
-def build_response(payload: dict[str, Any]) -> dict[str, Any]:
-    question = str(payload.get("question") or "").strip()
-    if not question:
-        raise ValueError("La question est vide.")
-
-    events = list(payload.get("events") or [])
-    incidents = list(payload.get("incidents") or [])
-    selected_id = payload.get("selectedEventId")
-
-    empty_extra = {
-        "confirmationPrompt": "",
-        "similarFound": False,
-        "matches": [],
-        "actions": [],
-        "source": "Guide fonctionnel TELNET",
+def ollama_http(prompt: str, json_format: bool = False) -> str:
+    body: dict[str, Any] = {
+        "model": MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0.25, "num_ctx": 8192},
     }
+    if json_format:
+        body["format"] = "json"
+    request = urllib.request.Request(
+        f"{OLLAMA_URL.rstrip('/')}/api/generate",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    result = str(payload.get("response") or "").strip()
+    if not result:
+        raise RuntimeError("Le modèle local n'a produit aucune réponse.")
+    return result
 
-    if is_greeting(question):
+
+def run_ollama(prompt: str, json_format: bool = False) -> str:
+    try:
+        return ollama_http(prompt, json_format)
+    except Exception as first_error:  # noqa: BLE001
+        executable = find_ollama_executable()
+        if not executable:
+            raise RuntimeError(f"Ollama introuvable: {first_error}") from first_error
+        try:
+            subprocess.Popen(
+                [executable, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            for _ in range(12):
+                time.sleep(0.5)
+                try:
+                    return ollama_http(prompt, json_format)
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception as start_error:  # noqa: BLE001
+            raise RuntimeError(f"Impossible de démarrer Ollama: {start_error}") from start_error
+        raise RuntimeError(
+            f"Ollama ne répond pas ou le modèle {MODEL} n'est pas installé. Lancez SETUP-LOCAL-AI.cmd."
+        )
+
+
+def parse_json_object(text: str) -> dict[str, Any]:
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.I)
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("Réponse JSON absente")
+    return json.loads(cleaned[start:end + 1])
+
+
+def fallback_description(seed: str, event: dict[str, Any]) -> str:
+    base = seed.strip().rstrip(".!?")
+    context = normalize(f"{event.get('title', '')} {base}")
+    if any(term in context for term in ("authentification", "authentication", "login", "connexion", "acces")):
+        return (
+            f"{base}. Des anomalies d’authentification ont été observées sur le service concerné et peuvent perturber "
+            "l’accès des utilisateurs ou signaler une tentative non autorisée. Les journaux de connexion, les comptes "
+            "touchés et les adresses sources doivent être analysés pour confirmer l’origine et le périmètre."
+        )
+    if any(term in context for term in ("reseau", "network", "vpn", "panne", "indisponibilite")):
+        return (
+            f"{base}. Une dégradation de la connectivité affecte le périmètre concerné et peut interrompre l’accès aux "
+            "applications ou services métiers. Les équipements, la supervision et les changements récents doivent être "
+            "vérifiés avant un rétablissement contrôlé."
+        )
+    return (
+        f"{base}. L’événement nécessite une analyse technique afin d’identifier son origine, le périmètre affecté et les "
+        "impacts réels sur le service. Les journaux disponibles, les changements récents et les mesures déjà entreprises "
+        "doivent être documentés avant la qualification."
+    )
+
+
+def generate_text(payload: dict[str, Any]) -> dict[str, Any]:
+    seed = str(payload.get("seed") or "").strip()
+    if not seed:
+        raise ValueError("Quelques mots sont nécessaires pour lancer la génération.")
+    purpose = str(payload.get("purpose") or "description professionnelle")
+    field = str(payload.get("field") or "description")
+    event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
+    incident = payload.get("incident") if isinstance(payload.get("incident"), dict) else {}
+    prompt = f"""
+Tu es un assistant RSSI francophone. Rédige uniquement le texte destiné au champ
+« {field} ». But: {purpose}. Écris 2 ou 3 phrases professionnelles, naturelles et
+précises. Pars des mots fournis, sans inventer de date, d'identité, d'ID, de preuve
+ou de résultat technique absent. Aucun titre, aucune puce, aucun Markdown.
+Mots fournis: {seed}
+Contexte événement: {json.dumps(event, ensure_ascii=False)[:3500]}
+Contexte incident: {json.dumps(incident, ensure_ascii=False)[:3500]}
+""".strip()
+    try:
+        text = run_ollama(prompt).strip().strip('"')
+        return {"text": text, "engine": f"ollama:{MODEL}", "modelAvailable": True}
+    except Exception as exc:  # noqa: BLE001
         return {
-            "answer": (
-                "Bonjour. Je peux expliquer le fonctionnement du site TELNET, guider une opération "
-                "précise, analyser un événement sélectionné, détailler ses risques, rechercher des cas "
-                "similaires ou proposer une approche de traitement. Que souhaitez-vous faire ?"
-            ),
-            **empty_extra,
-        }
-    if is_thanks(question):
-        return {
-            "answer": "Avec plaisir. Posez une nouvelle question sur le site, un événement, un incident ou un risque.",
-            **empty_extra,
-        }
-    if wants_capabilities(question):
-        return {
-            "answer": (
-                "Je peux vous guider pour déclarer et envoyer un événement, le qualifier selon la "
-                "confidentialité, l’intégrité et la disponibilité, gérer un plan d’incident, sélectionner "
-                "ou créer un risque, rechercher dans le journal d’audit, utiliser la recherche vocale, "
-                "modifier le profil et interpréter les statistiques. Avec un événement sélectionné, je "
-                "peux aussi l’expliquer, examiner ses causes et impacts, rechercher des cas similaires "
-                "ou proposer des actions."
-            ),
-            **empty_extra,
+            "text": fallback_description(seed, event), "engine": "fallback-local",
+            "modelAvailable": False, "diagnostic": str(exc)[:500],
         }
 
+
+def baseline_actions(event: dict[str, Any]) -> list[str]:
+    context = normalize(event_text(event))
+    if any(term in context for term in ("authentification", "login", "connexion", "auth")):
+        return [
+            "Identifier les comptes, adresses sources et plages horaires concernés dans les journaux.",
+            "Bloquer ou réinitialiser les accès suspects sans interrompre les comptes légitimes.",
+            "Corriger la configuration ou le mécanisme d'authentification puis surveiller les nouvelles tentatives.",
+        ]
+    if any(term in context for term in ("reseau", "vpn", "indisponibilite", "panne")):
+        return [
+            "Vérifier la supervision, les équipements réseau et les dernières modifications de configuration.",
+            "Isoler le composant défaillant et activer une solution de secours si elle existe.",
+            "Rétablir progressivement le service puis surveiller la stabilité et les erreurs résiduelles.",
+        ]
+    return [
+        "Confirmer le périmètre, les actifs touchés et les impacts CID à partir des preuves disponibles.",
+        "Collecter les journaux et appliquer une mesure d'atténuation réversible.",
+        "Tester le retour à la normale, documenter la cause et définir une action préventive.",
+    ]
+
+
+def build_draft(event: dict[str, Any] | None, incident: dict[str, Any] | None,
+                actions: list[str], model_draft: dict[str, Any] | None = None) -> dict[str, Any]:
+    if not event:
+        return {}
+    draft = dict(model_draft or {})
+    classification, critical = cid_classification(event)
+    default_level = "NIVEAU_4" if critical else "NIVEAU_2"
+    draft.setdefault("typesIncident", (incident or {}).get("types") or ["Défaillance technique"])
+    draft.setdefault("niveauImpact", (incident or {}).get("impactLevel") or default_level)
+    draft.setdefault("dureeIndisponibilite", (incident or {}).get("downtime") or "")
+    draft.setdefault("mesureAction", (incident or {}).get("mitigationAction") or (actions[0] if actions else "Collecter les preuves et contenir l'impact."))
+    draft.setdefault("mesureEtat", (incident or {}).get("mitigationState") or "En cours")
+    draft.setdefault("traitementAction", (incident or {}).get("treatmentAction") or "\n".join(actions))
+    draft.setdefault("traitementEtat", (incident or {}).get("treatmentState") or "En cours")
+    draft.setdefault("preconisation", (incident or {}).get("recommendation") or "Vérifier les preuves, tester le retour à la normale et renforcer la prévention.")
+    draft.setdefault("actionCorrective", (incident or {}).get("correctiveAction") or "Documenter la cause racine et appliquer une action empêchant la récidive.")
+    draft.setdefault("impactContinuite", normalize(event.get("availability")) == "critique")
+    draft.setdefault("impactContinuiteDescription", "Impact sur la continuité à confirmer avec la supervision et les utilisateurs concernés.")
+    draft.setdefault("changementDeclenche", False)
+    draft.setdefault("changementDeclencheDescription", "")
+    draft.setdefault("risques", (incident or {}).get("risks") or [{"reference": "", "description": "Risque à préciser selon le périmètre et les impacts observés."}])
+    draft["classificationCid"] = classification
+    return draft
+
+
+def question_requests_similar(question: str) -> bool:
     q = normalize(question)
-    q_tokens = tokens(question)
-    sections: list[str] = []
-    public_actions: list[str] = []
-    public_matches: list[dict[str, Any]] = []
+    return any(term in q for term in ("similaire", "historique", "precedent", "deja arrive", "similar", "history"))
 
-    # L'historique sert seulement à résoudre « cet événement », jamais à répéter
-    # automatiquement la réponse précédente.
-    history = [item for item in (payload.get("history") or []) if isinstance(item, dict) and item.get("role") == "user"]
-    referential = any(term in q.split() for term in ("ce", "cet", "cette", "celui", "elle", "il", "meme", "ses"))
-    selection_question = question
-    if referential and history:
-        selection_question = f"{history[-1].get('text', '')} {question}".strip()
 
-    selected = select_event(events, selected_id, selection_question)
+def question_requests_actions(question: str) -> bool:
+    q = normalize(question)
+    return any(term in q for term in ("action", "approche", "demarche", "resoudre", "solution", "traitement", "que faire", "recommend"))
 
-    wants_counts = any(word in q for word in ("combien", "nombre", "total", "statistique", "vue d ensemble", "dashboard", "resume global"))
-    if wants_counts:
-        sections.append(data_overview(events, incidents))
 
-    site_intents = {"compte", "audit", "recherche", "qualification", "supprimer", "creer"}
-    asks_site_navigation = any(term in q for term in ("ou trouver", "comment utiliser", "comment faire", "quelle page", "quel bouton", "site", "interface"))
-    if selected is None or bool(q_tokens & site_intents) or asks_site_navigation:
-        sections.extend(help_answers(question))
-
-    if selected:
-        event_id = selected.get("id")
-        incident = related_incident(incidents, event_id)
-        title = first_non_empty(selected.get("title"), fallback=f"Événement #{event_id}")
-
-        wants_explain = "expliquer" in q_tokens or any(term in q for term in ("c est quoi", "qu est ce", "resume", "tell me about", "de quoi s agit"))
-        wants_details = any(term in q for term in ("ticket", "code erreur", "date", "source", "service", "equipement", "detail", "information"))
-        wants_causes = "cause" in q_tokens or "pourquoi" in q or "origine" in q
-        wants_risks = "risque" in q_tokens or any(term in q for term in ("impact", "confidentialite", "integrite", "disponibilite", "cid"))
-        wants_similar = "similaire" in q_tokens or any(term in q for term in ("deja arrive", "precedent", "historique semblable"))
-        wants_actions = "action" in q_tokens or any(term in q for term in ("que faire", "comment resoudre", "approche", "recommand", "solution", "traitement propose"))
-        wants_status = any(term in q for term in ("etat", "statut", "duree", "cloture", "indisponibilite", "avancement"))
-
-        # Une question ciblée sans intention reconnue reçoit seulement une
-        # explication concise, pas les mêmes cas et actions à chaque message.
-        if not any((wants_explain, wants_details, wants_causes, wants_risks, wants_similar, wants_actions, wants_status)):
-            wants_explain = True
-
-        if wants_explain:
-            sections.append(
-                f"**Explication de « {title} »** — {first_non_empty(selected.get('description'), fallback='aucune description détaillée')}. "
-                f"Il a été détecté par {first_non_empty(selected.get('source'))} sur "
-                f"{first_non_empty(selected.get('service'), selected.get('equipment'))}. Son état est "
-                f"{first_non_empty(selected.get('state'))} et sa qualification est "
-                f"{first_non_empty(selected.get('qualification'))}."
-            )
-
-        if wants_details:
-            sections.append(
-                f"**Détails enregistrés** — événement #EV-{event_id}; ticket : {first_non_empty(selected.get('ticket'))}; "
-                f"code erreur : {first_non_empty(selected.get('errorCode'))}; date : {first_non_empty(selected.get('date'))}; "
-                f"source : {first_non_empty(selected.get('source'))}; service : {first_non_empty(selected.get('service'))}; "
-                f"équipement : {first_non_empty(selected.get('equipment'))}."
-            )
-
-        if wants_causes:
-            sections.append(
-                f"**Causes possibles** — {first_non_empty(selected.get('possibleCauses'), fallback='aucune cause n’est enregistrée')}. "
-                "Ces éléments sont des hypothèses : confirmez-les avec les journaux, les tests et les changements récents."
-            )
-
-        if wants_risks:
-            registered: list[str] = []
-            if incident:
-                registered = [
-                    f"{first_non_empty(risk.get('reference'), fallback='Sans ID')} — {first_non_empty(risk.get('description'))}"
-                    for risk in incident.get("risks") or []
-                ]
-            cid = (
-                f"Confidentialité : {first_non_empty(selected.get('confidentiality'))}; "
-                f"Intégrité : {first_non_empty(selected.get('integrity'))}; "
-                f"Disponibilité : {first_non_empty(selected.get('availability'))}."
-            )
-            registered_text = " Risques enregistrés : " + "; ".join(registered) + "." if registered else ""
-            sections.append(
-                f"**Risques et impacts CID** — {cid} Risques à examiner : {', '.join(infer_risks(selected))}.{registered_text}"
-            )
-
-        internal_matches: list[dict[str, Any]] = []
-        if wants_similar or wants_actions:
-            internal_matches = find_similar(selected, events, question)
-
-        if wants_similar:
-            public_matches = internal_matches
-            if public_matches:
-                summary = "; ".join(f"#EV-{m['eventId']} {m['title']} ({m['score']} %)" for m in public_matches[:3])
-                sections.append(f"**Événements similaires** — {summary}.")
-            else:
-                sections.append("**Événements similaires** — aucun cas suffisamment proche n’a été trouvé dans les données disponibles.")
-
-        if wants_status:
-            if incident:
-                sections.append(
-                    f"**État du plan** — traitement : {first_non_empty(incident.get('treatmentState'))}; "
-                    f"indisponibilité : {first_non_empty(incident.get('downtime'))}; "
-                    f"durée de traitement : {first_non_empty(incident.get('treatmentDuration'))}."
-                )
-            else:
-                sections.append("**État du plan** — aucun incident n’est associé à cet événement.")
-
-        if wants_actions:
-            historical_incidents = [
-                inc for inc in incidents
-                if any(str(match.get("eventId")) == str(inc.get("eventId")) for match in internal_matches)
-            ]
-            historical_actions = unique_strings(
-                value for inc in historical_incidents for value in (
-                    inc.get("mitigationAction"), inc.get("treatmentAction"),
-                    inc.get("recommendation"), inc.get("correctiveAction"),
-                )
-            )
-            public_actions = unique_strings([*historical_actions[:4], *baseline_actions(selected)])[:7]
-            prefix = "Les premières mesures proviennent de cas proches enregistrés. " if historical_actions else ""
-            numbered = " ".join(f"{index + 1}) {action}" for index, action in enumerate(public_actions[:5]))
-            sections.append(f"**Approche recommandée** — {prefix}{numbered}")
-
-    if not sections:
-        guides = help_answers(question)
-        if guides:
-            sections.extend(guides)
+def fallback_answer(question: str, event: dict[str, Any] | None, incident: dict[str, Any] | None,
+                    events: list[dict[str, Any]], incidents: list[dict[str, Any]], diagnostic: str) -> dict[str, Any]:
+    q = normalize(question)
+    actions: list[str] = []
+    matches: list[dict[str, Any]] = []
+    if re.match(r"^(bonjour|salut|bonsoir|hello|hi|hey)\b", q):
+        answer = "Bonjour. Je peux analyser les événements et incidents TELNET, expliquer les risques, proposer une démarche ou vous guider dans l'application."
+    elif event:
+        title = event.get("title") or f"Événement {event.get('reference') or event.get('id')}"
+        classification, critical = cid_classification(event)
+        impacts = (
+            f"confidentialité {event.get('confidentiality') or 'non renseignée'}, "
+            f"intégrité {event.get('integrity') or 'non renseignée'} et "
+            f"disponibilité {event.get('availability') or 'non renseignée'}"
+        )
+        if question_requests_similar(question):
+            matches = find_similar(events, event)
+            answer = f"J’ai trouvé {len(matches)} événement(s) comparable(s) à « {title} » dans l’historique actuel."
+        elif any(term in q for term in ("risque", "impact", "confidentialite", "integrite", "disponibilite")):
+            risks = (incident or {}).get("risks") or []
+            risk_text = "; ".join(
+                f"{item.get('reference') or 'sans ID'} — {item.get('description') or 'sans description'}" for item in risks
+            ) or "aucun risque n’est encore enregistré"
+            answer = f"Pour « {title} », les impacts sont {impacts}. Classification CID calculée : {classification}. Risques enregistrés : {risk_text}."
+        elif any(term in q for term in ("qualifie", "qualification", "incident", "critique")):
+            answer = f"Les trois impacts de « {title} » sont {impacts}. La règle TELNET donne {classification}: un seul impact Critique suffit pour classer l’événement comme incident."
+        elif question_requests_actions(question):
+            actions = baseline_actions(event)
+            answer = f"Pour « {title} », commencez par confirmer le périmètre et les preuves, puis contenez l’impact et restaurez le service de façon contrôlée."
         else:
-            sections.append(
-                "Je ne dispose pas d’assez d’éléments pour répondre précisément sans inventer. "
-                "Indiquez la page ou l’objectif concerné, par exemple : déclarer un événement, qualifier "
-                "un incident, ajouter un risque, rechercher un audit, modifier le profil, ou analyser "
-                "l’événement #EV-12."
+            answer = (
+                f"« {title} » est décrit ainsi : {event.get('description') or 'description non renseignée'}. "
+                f"État : {event.get('state') or 'non renseigné'}; qualification : {event.get('qualification') or classification}. "
+                f"Impacts : {impacts}."
             )
+        ask = bool(critical and (actions or any(term in q for term in ("analyse", "incident", "qualifie", "risque"))))
+    elif any(term in q for term in ("combien", "nombre", "total", "dashboard")):
+        open_incidents = sum(1 for item in incidents if normalize(item.get("treatmentState")) not in {"clos", "cloture", "termine"})
+        answer = f"La base actuelle contient {len(events)} événement(s) et {len(incidents)} incident(s), dont {open_incidents} non clôturé(s)."
+        ask = False
+    elif "mot de passe" in q or "password" in q:
+        answer = "Pour un mot de passe oublié, utilisez le lien de la page Connexion, saisissez votre email ou nom d’utilisateur, puis le code reçu par email. Pour le changer depuis le profil, saisissez le mot de passe actuel et le nouveau mot de passe."
+        ask = False
+    elif "audit" in q:
+        answer = "Le Journal d’audits permet de rechercher par utilisateur, action ou date. La recherche textuelle et la recherche vocale appliquent le filtre à la liste affichée."
+        ask = False
+    elif "risque" in q:
+        answer = "Dans le plan d’incident, vous pouvez choisir un risque existant ou créer une nouvelle ligne. La description est obligatoire; l’ID peut être saisi manuellement."
+        ask = False
+    else:
+        answer = "Je peux vous guider sur TELNET et analyser les données enregistrées. Reformulez la question avec le titre, le ticket, le code erreur, le service ou la situation concernée."
+        ask = False
 
-    answer = "\n\n".join(unique_strings(sections))
+    if event and question_requests_actions(question) and not actions:
+        actions = baseline_actions(event)
+    if event and question_requests_similar(question) and not matches:
+        matches = find_similar(events, event)
+    classification, critical = cid_classification(event)
+    ask = bool(event and critical and (actions or question_requests_actions(question))) if 'ask' not in locals() else ask
     return {
         "answer": answer,
-        "confirmationPrompt": (
-            "Souhaitez-vous confirmer ces actions et les préparer dans le plan d’incident ?"
-            if public_actions and selected else ""
-        ),
-        "similarFound": bool(public_matches),
-        "matches": public_matches,
-        "actions": public_actions,
-        "source": "Données et guide fonctionnel TELNET",
+        "selectedEventId": event.get("id") if event else None,
+        "confirmationPrompt": "Voulez-vous que je remplisse le plan d’incident avec cette analyse ?" if ask else "",
+        "askToFillIncident": ask,
+        "similarFound": bool(matches),
+        "matches": matches,
+        "actions": actions,
+        "incidentDraft": build_draft(event, incident, actions),
+        "source": "Données TELNET — mode de secours local",
+        "engine": "fallback-local",
+        "diagnostic": diagnostic[:500],
     }
+
+
+def assistant(payload: dict[str, Any]) -> dict[str, Any]:
+    question = str(payload.get("question") or "").strip()
+    if not question:
+        raise ValueError("La question ne peut pas être vide.")
+    events = list(payload.get("events") or [])
+    incidents = list(payload.get("incidents") or [])
+    history = list(payload.get("history") or [])
+    event = select_event(events, payload.get("selectedEventId"), question, history)
+    incident = related_incident(incidents, event.get("id")) if event else None
+    classification, critical = cid_classification(event)
+
+    # Les nouvelles données sont intégrées à chaque requête, sans réentraînement du modèle.
+    relevant_events = sorted(
+        events, key=lambda item: similarity(question + " " + (event_text(event) if event else ""), event_text(item)), reverse=True
+    )[:12]
+    relevant_ids = {str(item.get("id")) for item in relevant_events}
+    relevant_incidents = [item for item in incidents if str(item.get("eventId")) in relevant_ids][:12]
+    similar = find_similar(events, event) if event and question_requests_similar(question) else []
+
+    data_context = {
+        "selectedEvent": compact_event(event),
+        "selectedIncident": compact_incident(incident),
+        "classificationCidCalculee": classification,
+        "regleIncident": "les 3 impacts sont obligatoires; au moins un Critique => INCIDENT",
+        "relevantEvents": [compact_event(item) for item in relevant_events],
+        "relevantIncidents": [compact_incident(item) for item in relevant_incidents],
+        "counts": {"events": len(events), "incidents": len(incidents)},
+    }
+    history_text = [
+        {"role": str(item.get("role") or "user"), "text": str(item.get("text") or "")[:900]}
+        for item in history[-8:] if isinstance(item, dict)
+    ]
+
+    prompt = f"""
+Tu es le chatbot RSSI intelligent de TELNET. Réponds en français naturel et
+professionnel à toute question liée au site, aux événements, incidents, risques,
+impacts CID, plans de traitement, audits et comptes. Utilise l'historique de la
+conversation et les données live fournies. Ne réclame pas l'ID si le titre, ticket,
+code erreur, service ou contexte permet d'identifier l'événement. Ne répète pas les
+cas similaires ni les actions sauf si la question les demande. N'invente aucune
+donnée. Tu peux expliquer, comparer, compter, qualifier et proposer une démarche.
+La classification CID calculée par le serveur est prioritaire sur ton opinion.
+
+GUIDE:
+{SITE_GUIDE}
+
+DONNÉES LIVE:
+{json.dumps(data_context, ensure_ascii=False)[:26000]}
+
+HISTORIQUE:
+{json.dumps(history_text, ensure_ascii=False)[:7000]}
+
+QUESTION:
+{question}
+
+Retourne uniquement un JSON valide:
+{{
+  "answer": "réponse complète mais concise",
+  "actions": ["actions seulement si pertinentes"],
+  "askToFillIncident": true ou false,
+  "confirmationPrompt": "question de confirmation ou chaîne vide",
+  "incidentDraft": {{
+    "typesIncident": ["type"], "niveauImpact": "NIVEAU_1|NIVEAU_2|NIVEAU_3|NIVEAU_4",
+    "dureeIndisponibilite": "", "mesureAction": "", "mesureEtat": "En cours",
+    "traitementAction": "", "traitementEtat": "En cours", "preconisation": "",
+    "actionCorrective": "", "impactContinuite": false,
+    "impactContinuiteDescription": "", "changementDeclenche": false,
+    "changementDeclencheDescription": "", "risques": [{{"reference": "", "description": "description obligatoire"}}]
+  }}
+}}
+askToFillIncident peut être vrai uniquement si un événement précis est identifié,
+sa classification CID calculée est INCIDENT, et la réponse contient une analyse ou
+des actions utiles au plan.
+""".strip()
+
+    try:
+        raw = run_ollama(prompt, json_format=True)
+        model = parse_json_object(raw)
+        answer = str(model.get("answer") or "").strip()
+        if not answer:
+            raise ValueError("Le modèle n'a pas fourni de réponse.")
+        actions = [str(item).strip() for item in (model.get("actions") or []) if str(item).strip()][:8]
+        model_draft = model.get("incidentDraft") if isinstance(model.get("incidentDraft"), dict) else {}
+        ask = bool(event and critical and model.get("askToFillIncident") and (actions or model_draft))
+        if event and critical and question_requests_actions(question) and not actions:
+            actions = baseline_actions(event)
+            ask = True
+        return {
+            "answer": answer,
+            "selectedEventId": event.get("id") if event else None,
+            "confirmationPrompt": str(model.get("confirmationPrompt") or ("Voulez-vous que je remplisse le plan d’incident avec cette analyse ?" if ask else "")),
+            "askToFillIncident": ask,
+            "similarFound": bool(similar),
+            "matches": similar,
+            "actions": actions,
+            "incidentDraft": build_draft(event, incident, actions, model_draft),
+            "source": "Modèle local TELNET + données live",
+            "engine": f"ollama:{MODEL}",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return fallback_answer(question, event, incident, events, incidents, str(exc))
+
 
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
-        json.dump(build_response(payload), sys.stdout, ensure_ascii=False)
+        result = generate_text(payload) if str(payload.get("mode") or "assistant") == "generate_text" else assistant(payload)
+        json.dump(result, sys.stdout, ensure_ascii=False)
         return 0
     except Exception as exc:  # noqa: BLE001
         json.dump({"message": str(exc)}, sys.stderr, ensure_ascii=False)

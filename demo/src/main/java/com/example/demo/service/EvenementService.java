@@ -4,7 +4,6 @@ import com.example.demo.entity.Evenement;
 import com.example.demo.entity.Incident;
 import com.example.demo.repository.EvenementRepository;
 import com.example.demo.repository.IncidentRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -12,25 +11,31 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-import java.util.function.Predicate;
 
 @Service
-@RequiredArgsConstructor
 public class EvenementService {
-
-    private static final DateTimeFormatter IDENTIFIER_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final EvenementRepository evenementRepository;
     private final IncidentRepository incidentRepository;
     private final AuditLogService auditLogService;
     private final EmailService emailService;
 
+    public EvenementService(
+            EvenementRepository evenementRepository,
+            IncidentRepository incidentRepository,
+            AuditLogService auditLogService,
+            EmailService emailService
+    ) {
+        this.evenementRepository = evenementRepository;
+        this.incidentRepository = incidentRepository;
+        this.auditLogService = auditLogService;
+        this.emailService = emailService;
+    }
+
     public List<Evenement> getAllEvenements(String username, boolean isRssi) {
-        if (isRssi) {
-            return evenementRepository.findAll();
-        }
-        return evenementRepository.findByDeclarePar(username);
+        return isRssi ? evenementRepository.findAll() : evenementRepository.findByDeclarePar(username);
     }
 
     public Optional<Evenement> getEvenementById(Long id) {
@@ -38,25 +43,17 @@ public class EvenementService {
     }
 
     public Evenement createEvenement(Evenement evenement, String username) {
-        if (evenement.getQualification() == null) {
-            evenement.setQualification("NON_QUALIFIE");
-        }
-        if (evenement.getEnvoyeAuRssi() == null) {
-            evenement.setEnvoyeAuRssi(false);
-        }
+        if (evenement.getQualification() == null) evenement.setQualification("NON_QUALIFIE");
+        if (evenement.getEnvoyeAuRssi() == null) evenement.setEnvoyeAuRssi(false);
 
-        // Ces identifiants ne sont plus saisis par l'utilisateur. Le backend est
-        // la source de vérité et vérifie l'unicité avant l'enregistrement.
-        evenement.setIdTicket(resolveIdentifier(
-                evenement.getIdTicket(), "TCK", evenementRepository::existsByIdTicket));
-        evenement.setCodeErreur(resolveIdentifier(
-                evenement.getCodeErreur(), "ERR", evenementRepository::existsByCodeErreur));
+        evenement.setReferenceEvenement(requireUniqueEventReference(evenement.getReferenceEvenement(), null));
+        evenement.setIdTicket(requireUniqueTicket(evenement.getIdTicket(), null));
+        evenement.setCodeErreur(requireUniqueErrorCode(evenement.getCodeErreur(), null));
         evenement.setDeclarePar(username);
 
         Evenement saved = evenementRepository.save(evenement);
         auditLogService.logAction(username,
-                "Création Événement N° " + saved.getId()
-                        + " [" + saved.getIdTicket() + "] '" + saved.getLibelleErreur() + "'");
+                "Création Événement N° " + saved.getId() + " [" + saved.getIdTicket() + "] '" + saved.getLibelleErreur() + "'");
         return saved;
     }
 
@@ -67,13 +64,11 @@ public class EvenementService {
         if (!isRssi && !username.equals(event.getDeclarePar())) {
             throw new IllegalArgumentException("Vous n'êtes pas autorisé à envoyer cet événement au RSSI.");
         }
-
         if (Boolean.TRUE.equals(event.getEnvoyeAuRssi())) {
             throw new IllegalStateException("Cet événement a déjà été envoyé au RSSI.");
         }
-
         if (!isEventComplete(event)) {
-            throw new IllegalStateException("Veuillez remplir tous les champs du formulaire avant l'envoi au RSSI.");
+            throw new IllegalStateException("Veuillez remplir tous les champs obligatoires avant l'envoi au RSSI.");
         }
 
         emailService.notifyRssiNewEvent(event);
@@ -90,14 +85,22 @@ public class EvenementService {
             boolean wasQualified = details.getQualification() != null
                     && !details.getQualification().equals(existing.getQualification());
 
+            existing.setReferenceEvenement(requireUniqueEventReference(
+                    details.getReferenceEvenement() == null || details.getReferenceEvenement().isBlank()
+                            ? existing.getReferenceEvenement()
+                            : details.getReferenceEvenement(),
+                    id
+            ));
             existing.setDescriptionDetaillee(details.getDescriptionDetaillee());
             existing.setDateHeureDetection(details.getDateHeureDetection());
             existing.setDetecteParSource(details.getDetecteParSource());
+            existing.setIdTicket(requireUniqueTicket(details.getIdTicket(), id));
             existing.setCommentaireSource(details.getCommentaireSource());
             existing.setNatureEvenement(details.getNatureEvenement());
             existing.setServiceOsAppli(details.getServiceOsAppli());
             existing.setEquipementHardware(details.getEquipementHardware());
             existing.setLibelleErreur(details.getLibelleErreur());
+            existing.setCodeErreur(requireUniqueErrorCode(details.getCodeErreur(), id));
             existing.setCausesPossibles(details.getCausesPossibles());
             existing.setEtat(details.getEtat());
             existing.setAppreciation(details.getAppreciation());
@@ -108,36 +111,24 @@ public class EvenementService {
             existing.setImpactCommentaire(details.getImpactCommentaire());
             existing.setTypeActif(details.getTypeActif());
             existing.setActifAffecte(details.getActifAffecte());
-
-            existing.setImpactConfidentialite(details.getImpactConfidentialite());
-            existing.setCommentaireConfidentialite(details.getCommentaireConfidentialite());
-            existing.setImpactIntegrite(details.getImpactIntegrite());
-            existing.setCommentaireIntegrite(details.getCommentaireIntegrite());
-            existing.setImpactDisponibilite(details.getImpactDisponibilite());
-            existing.setCommentaireDisponibilite(details.getCommentaireDisponibilite());
-
-            // Les identifiants restent stables après création.
-            if (!isFilled(existing.getIdTicket())) {
-                existing.setIdTicket(generateUniqueIdentifier("TCK", evenementRepository::existsByIdTicket));
-            }
-            if (!isFilled(existing.getCodeErreur())) {
-                existing.setCodeErreur(generateUniqueIdentifier("ERR", evenementRepository::existsByCodeErreur));
-            }
-
-            if (wasQualified) {
-                existing.setQualification(details.getQualification());
+            boolean qualificationSubmitted = hasAnyQualificationImpact(details);
+            if (qualificationSubmitted) {
+                validateQualificationImpacts(details);
+                existing.setImpactConfidentialite(details.getImpactConfidentialite());
+                existing.setCommentaireConfidentialite(details.getCommentaireConfidentialite());
+                existing.setImpactIntegrite(details.getImpactIntegrite());
+                existing.setCommentaireIntegrite(details.getCommentaireIntegrite());
+                existing.setImpactDisponibilite(details.getImpactDisponibilite());
+                existing.setCommentaireDisponibilite(details.getCommentaireDisponibilite());
+                existing.setQualification(classifyFromCid(details));
                 existing.setQualifiePar(username);
+                wasQualified = true;
             }
 
             Evenement saved = evenementRepository.save(existing);
-
-            if (wasQualified) {
-                auditLogService.logAction(username,
-                        "Qualification de l'Événement N° " + saved.getId() + " : " + saved.getQualification());
-            } else {
-                auditLogService.logAction(username, "Mise à jour de l'Événement N° " + saved.getId());
-            }
-
+            auditLogService.logAction(username, wasQualified
+                    ? "Qualification de l'Événement N° " + saved.getId() + " : " + saved.getQualification()
+                    : "Mise à jour de l'Événement N° " + saved.getId());
             return saved;
         });
     }
@@ -156,22 +147,77 @@ public class EvenementService {
         }).orElse(false);
     }
 
-    private String resolveIdentifier(String proposed, String prefix, Predicate<String> exists) {
-        String normalized = proposed == null ? "" : proposed.trim().toUpperCase();
-        boolean validAutomaticFormat = normalized.matches(prefix + "-\\d{8}-[A-Z0-9]{6,12}");
-        if (validAutomaticFormat && !exists.test(normalized)) {
-            return normalized;
+    private String requireUniqueEventReference(String rawValue, Long currentId) {
+        String candidate = rawValue == null ? "" : rawValue.trim().toUpperCase();
+        if (candidate.isBlank()) candidate = generateEventReference();
+
+        boolean duplicate = currentId == null
+                ? evenementRepository.existsByReferenceEvenementIgnoreCase(candidate)
+                : evenementRepository.existsByReferenceEvenementIgnoreCaseAndIdNot(candidate, currentId);
+        while (duplicate) {
+            candidate = generateEventReference();
+            duplicate = currentId == null
+                    ? evenementRepository.existsByReferenceEvenementIgnoreCase(candidate)
+                    : evenementRepository.existsByReferenceEvenementIgnoreCaseAndIdNot(candidate, currentId);
         }
-        return generateUniqueIdentifier(prefix, exists);
+        return candidate;
     }
 
-    private String generateUniqueIdentifier(String prefix, Predicate<String> exists) {
-        String value;
-        do {
-            String random = UUID.randomUUID().toString().replace("-", "")
-                    .substring(0, 8).toUpperCase();
-            value = prefix + "-" + LocalDate.now().format(IDENTIFIER_DATE) + "-" + random;
-        } while (exists.test(value));
+    private String generateEventReference() {
+        String date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
+        return "EV-" + date + "-" + suffix;
+    }
+
+    private boolean hasAnyQualificationImpact(Evenement details) {
+        String requested = details.getQualification();
+        if ("INCIDENT".equals(requested) || "NON_INCIDENT".equals(requested)) return true;
+        Set<String> allowed = Set.of("Mineur", "Majeur", "Critique");
+        return allowed.contains(details.getImpactConfidentialite())
+                && allowed.contains(details.getImpactIntegrite())
+                && allowed.contains(details.getImpactDisponibilite());
+    }
+
+    private void validateQualificationImpacts(Evenement details) {
+        Set<String> allowed = Set.of("Mineur", "Majeur", "Critique");
+        if (!allowed.contains(details.getImpactConfidentialite())
+                || !allowed.contains(details.getImpactIntegrite())
+                || !allowed.contains(details.getImpactDisponibilite())) {
+            throw new IllegalArgumentException(
+                    "Les trois impacts CID doivent être renseignés avec Mineur, Majeur ou Critique."
+            );
+        }
+    }
+
+    private String classifyFromCid(Evenement details) {
+        boolean critical = "Critique".equals(details.getImpactConfidentialite())
+                || "Critique".equals(details.getImpactIntegrite())
+                || "Critique".equals(details.getImpactDisponibilite());
+        return critical ? "INCIDENT" : "NON_INCIDENT";
+    }
+
+    private String requireUniqueTicket(String rawValue, Long currentId) {
+        String value = normalizeIdentifier(rawValue, "L'ID Ticket est obligatoire.");
+        boolean duplicate = currentId == null
+                ? evenementRepository.existsByIdTicketIgnoreCase(value)
+                : evenementRepository.existsByIdTicketIgnoreCaseAndIdNot(value, currentId);
+        if (duplicate) throw new IllegalArgumentException("Cet ID Ticket existe déjà. Saisissez une valeur unique.");
+        return value;
+    }
+
+    private String requireUniqueErrorCode(String rawValue, Long currentId) {
+        String value = normalizeIdentifier(rawValue, "Le code erreur est obligatoire.");
+        boolean duplicate = currentId == null
+                ? evenementRepository.existsByCodeErreurIgnoreCase(value)
+                : evenementRepository.existsByCodeErreurIgnoreCaseAndIdNot(value, currentId);
+        if (duplicate) throw new IllegalArgumentException("Ce code erreur existe déjà. Saisissez une valeur unique.");
+        return value;
+    }
+
+    private String normalizeIdentifier(String rawValue, String emptyMessage) {
+        if (rawValue == null || rawValue.isBlank()) throw new IllegalArgumentException(emptyMessage);
+        String value = rawValue.trim();
+        if (value.length() > 120) throw new IllegalArgumentException("L'identifiant ne doit pas dépasser 120 caractères.");
         return value;
     }
 
@@ -180,6 +226,8 @@ public class EvenementService {
                 && isFilled(event.getDescriptionDetaillee())
                 && event.getDateHeureDetection() != null
                 && isFilled(event.getDetecteParSource())
+                && isFilled(event.getIdTicket())
+                && isFilled(event.getCodeErreur())
                 && isFilled(event.getCausesPossibles())
                 && isFilled(event.getEtat())
                 && isFilled(event.getNatureEvenement());

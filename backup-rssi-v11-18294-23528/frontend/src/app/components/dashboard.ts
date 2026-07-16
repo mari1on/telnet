@@ -6,7 +6,6 @@ import { ApiService, User } from '../api.service';
 
 interface Evenement {
   id?: number;
-  referenceEvenement?: string;
   descriptionDetaillee: string;
   dateHeureDetection: string;
   detecteParSource: string;
@@ -181,7 +180,7 @@ export class DashboardComponent implements OnInit {
   assistantMessages = signal<ChatMessage[]>([
     {
       role: 'assistant',
-      text: 'Bonjour. Posez votre question sur les événements, les incidents, les risques ou le fonctionnement de TELNET.'
+      text: 'Posez une question sur TELNET ou décrivez un événement par son titre, son ticket, son code erreur ou son contexte.'
     }
   ]);
 
@@ -213,7 +212,7 @@ export class DashboardComponent implements OnInit {
   eventNatures = ['Indisponibilite', 'Degradation', 'Erreur applicative', 'Alerte securite', 'Suspicion de fraude', 'Autre'];
   etatsEvent = ['Ouvert', 'En cours', 'Clos'];
   eventImpactLevels = ['Aucun', 'Mineur', 'Majeur', 'Critique'];
-  impactOptions = ['Mineur', 'Majeur', 'Critique'];
+  impactOptions = ['Aucun', 'Mineur', 'Majeur', 'Critique'];
   etatsMesure = ['En cours', 'Terminé', 'En attente'];
   etatsTraitement = ['En cours', 'Clôturé', 'Suspendu'];
   yesNoOptions = [
@@ -273,6 +272,7 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.activeTab.set(this.apiService.isRssi() ? 'stats' : 'events');
+    this.productUpdates.set(localStorage.getItem('telnet_product_updates') === 'true');
     this.loadEvents();
     this.loadIncidents();
     this.loadRisks();
@@ -280,16 +280,8 @@ export class DashboardComponent implements OnInit {
   }
 
   // --- Initializers ---
-  private generateEventReference(): string {
-    const now = new Date();
-    const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0');
-    return `EV-${date}-${suffix}`;
-  }
-
   initEventForm(): Evenement {
     return {
-      referenceEvenement: this.generateEventReference(),
       descriptionDetaillee: '',
       dateHeureDetection: new Date().toISOString().slice(0, 16),
       detecteParSource: 'HELP_DESK',
@@ -311,11 +303,11 @@ export class DashboardComponent implements OnInit {
       typeActif: '',
       actifAffecte: '',
       qualification: 'NON_QUALIFIE',
-      impactConfidentialite: '',
+      impactConfidentialite: 'Aucun',
       commentaireConfidentialite: '',
-      impactIntegrite: '',
+      impactIntegrite: 'Aucun',
       commentaireIntegrite: '',
-      impactDisponibilite: '',
+      impactDisponibilite: 'Aucun',
       commentaireDisponibilite: ''
     };
     
@@ -671,8 +663,6 @@ export class DashboardComponent implements OnInit {
     const search = this.normalizeSearch(this.eventSearch);
     return this.events().filter(event => {
       const searchable = this.normalizeSearch([
-        event.referenceEvenement,
-        event.id,
         event.libelleErreur,
         event.descriptionDetaillee,
         event.detecteParSource,
@@ -782,42 +772,22 @@ export class DashboardComponent implements OnInit {
 
   private matchesNormalizedSearch(searchable: string, normalizedQuery: string): boolean {
     if (!normalizedQuery) return true;
-    const haystack = searchable.split(/\s+/).filter(Boolean);
     const terms = normalizedQuery.split(/\s+/).filter(Boolean);
-    return terms.every(term => haystack.some(candidate =>
-      candidate.includes(term)
-      || term.includes(candidate)
-      || (term.length >= 4 && candidate.length >= 4 && this.levenshteinDistance(candidate, term) <= 2)
-    ));
-  }
-
-  private levenshteinDistance(left: string, right: string): number {
-    const matrix = Array.from({ length: right.length + 1 }, (_, row) => [row]);
-    for (let column = 0; column <= left.length; column++) matrix[0][column] = column;
-    for (let row = 1; row <= right.length; row++) {
-      for (let column = 1; column <= left.length; column++) {
-        matrix[row][column] = right[row - 1] === left[column - 1]
-          ? matrix[row - 1][column - 1]
-          : Math.min(matrix[row - 1][column - 1], matrix[row][column - 1], matrix[row - 1][column]) + 1;
-      }
-    }
-    return matrix[right.length][left.length];
+    return terms.every(term => searchable.includes(term));
   }
 
   private normalizeSearch(value: unknown): string {
     const synonyms: Record<string, string> = {
-      authentication: 'auth', authentification: 'auth', login: 'auth', connexion: 'auth', access: 'auth', acces: 'auth',
-      failure: 'echec', failed: 'echec', erreur: 'echec', error: 'echec',
-      network: 'reseau', connectivity: 'reseau', connectivite: 'reseau', vpn: 'reseau',
-      outage: 'indisponibilite', downtime: 'indisponibilite', down: 'indisponibilite', panne: 'indisponibilite', coupure: 'indisponibilite',
+      authentication: 'authentification', login: 'authentification', access: 'acces',
+      network: 'reseau', connectivity: 'reseau', firewall: 'parefeu',
+      outage: 'indisponibilite', downtime: 'indisponibilite', down: 'indisponibilite',
       server: 'serveur', host: 'serveur',
-      event: 'evenement', events: 'evenement', evenements: 'evenement', declaration: 'evenement', declarations: 'evenement',
-      incident: 'incident', incidents: 'incident',
-      risk: 'risque', risks: 'risque', risques: 'risque', threat: 'menace',
-      open: 'ouvert', opened: 'ouvert', closed: 'clos', pending: 'attente',
+      event: 'evenement', events: 'evenements', declaration: 'declaration',
+      risk: 'risque', risks: 'risques', threat: 'menace',
+      open: 'ouvert', closed: 'clos', pending: 'attente',
       major: 'majeur', minor: 'mineur', critical: 'critique',
       integrity: 'integrite', availability: 'disponibilite', confidentiality: 'confidentialite',
-      sent: 'envoye', user: 'utilisateur', helpdesk: 'helpdesk'
+      sent: 'envoye', user: 'utilisateur', helpdesk: 'help desk'
     };
 
     return String(value ?? '')
@@ -854,8 +824,8 @@ export class DashboardComponent implements OnInit {
     if (!this.isFilled(event.dateHeureDetection)) return 'La date et l\'heure de détection sont obligatoires.';
     if (!this.isFilled(event.declarePar)) return 'Le champ « Détecté par » est obligatoire.';
     if (!this.isFilled(event.detecteParSource)) return 'La source de détection est obligatoire.';
-    if (!this.isFilled(event.idTicket)) return "L'ID Ticket est obligatoire.";
-    if (!this.isFilled(event.codeErreur)) return 'Le code erreur est obligatoire.';
+    if (!this.isFilled(event.idTicket)) return "L'ID Ticket est obligatoire et doit être unique.";
+    if (!this.isFilled(event.codeErreur)) return 'Le code erreur est obligatoire et doit être unique.';
     if (!this.isFilled(event.causesPossibles)) return 'Les causes possibles sont obligatoires.';
     if (!this.isFilled(event.etat)) return 'L\'état de l\'événement est obligatoire.';
     if (!this.isFilled(event.natureEvenement)) return 'La nature de l\'événement est obligatoire.';
@@ -971,7 +941,8 @@ export class DashboardComponent implements OnInit {
 
     this.errorMsg.set('');
     const history = this.assistantMessages()
-      .slice(-8)
+      .filter(message => message.role === 'user')
+      .slice(-4)
       .map(message => ({ role: message.role, text: message.text }));
     this.assistantMessages.update(messages => [...messages, { role: 'user', text: question }]);
     this.assistantLoading.set(true);
@@ -1117,7 +1088,7 @@ export class DashboardComponent implements OnInit {
     this.assistantMessages.set([
       {
         role: 'assistant',
-        text: 'Nouvelle conversation prête. Posez une question sur TELNET ou décrivez la situation avec vos propres mots.'
+        text: 'Nouvelle conversation prête. Décrivez l’événement par son titre, son ticket, son code erreur ou son contexte.'
       }
     ]);
   }
@@ -1187,6 +1158,7 @@ export class DashboardComponent implements OnInit {
       newPassword: passwordChanged ? newPassword : undefined
     }).subscribe({
       next: () => {
+        localStorage.setItem('telnet_product_updates', String(this.productUpdates()));
         this.userForm.currentPassword = '';
         this.userForm.newPassword = '';
         this.userForm.confirmPassword = '';
@@ -1202,22 +1174,12 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  isStrongPassword(password: string): boolean {
+  private isStrongPassword(password: string): boolean {
     return password.length >= 8
       && /[A-Z]/.test(password)
       && /[a-z]/.test(password)
       && /\d/.test(password)
       && /[@$!%*?&]/.test(password);
-  }
-
-  showNewPasswordRule(): boolean {
-    const value = this.userForm.newPassword || '';
-    return value.length > 0 && !this.isStrongPassword(value);
-  }
-
-  showPasswordMismatch(): boolean {
-    const confirmation = this.userForm.confirmPassword || '';
-    return confirmation.length > 0 && confirmation !== (this.userForm.newPassword || '');
   }
 
   findIncidentForEvent(eventId: number): Incident | undefined {
@@ -1226,7 +1188,7 @@ export class DashboardComponent implements OnInit {
 
   openEditEvent(event: Evenement): void {
     this.selectedEvent.set(event);
-    this.eventForm = { ...event, referenceEvenement: event.referenceEvenement || (event.id ? `EV-${event.id}` : this.generateEventReference()) };
+    this.eventForm = { ...event };
     if (event.dateHeureDetection) {
       this.eventForm.dateHeureDetection = event.dateHeureDetection.slice(0, 16);
     }
@@ -1352,11 +1314,11 @@ export class DashboardComponent implements OnInit {
   // --- Qualification Operations ---
   openQualify(event: Evenement): void {
     this.selectedEvent.set(event);
-    this.eventForm = { ...event, referenceEvenement: event.referenceEvenement || (event.id ? `EV-${event.id}` : this.generateEventReference()) };
+    this.eventForm = { ...event };
 
-    this.eventForm.impactConfidentialite = this.eventForm.impactConfidentialite === 'Aucun' ? '' : (this.eventForm.impactConfidentialite || '');
-    this.eventForm.impactIntegrite = this.eventForm.impactIntegrite === 'Aucun' ? '' : (this.eventForm.impactIntegrite || '');
-    this.eventForm.impactDisponibilite = this.eventForm.impactDisponibilite === 'Aucun' ? '' : (this.eventForm.impactDisponibilite || '');
+    this.eventForm.impactConfidentialite = this.eventForm.impactConfidentialite || 'Aucun';
+    this.eventForm.impactIntegrite = this.eventForm.impactIntegrite || 'Aucun';
+    this.eventForm.impactDisponibilite = this.eventForm.impactDisponibilite || 'Aucun';
     this.eventForm.commentaireConfidentialite = this.eventForm.commentaireConfidentialite || '';
     this.eventForm.commentaireIntegrite = this.eventForm.commentaireIntegrite || '';
     this.eventForm.commentaireDisponibilite = this.eventForm.commentaireDisponibilite || '';
@@ -1377,21 +1339,13 @@ export class DashboardComponent implements OnInit {
   }
 
   onQualificationChange(): void {
-    const impacts = [
+    const isIncident = [
       this.eventForm.impactConfidentialite,
       this.eventForm.impactIntegrite,
       this.eventForm.impactDisponibilite
-    ];
-    this.qualifyValue = impacts.some(value => value === 'Critique') ? 'INCIDENT' : 'NON_INCIDENT';
-  }
+    ].some(val => val === 'Majeur' || val === 'Critique');
 
-  private areQualificationImpactsComplete(): boolean {
-    const allowed = new Set(['Mineur', 'Majeur', 'Critique']);
-    return [
-      this.eventForm.impactConfidentialite,
-      this.eventForm.impactIntegrite,
-      this.eventForm.impactDisponibilite
-    ].every(value => allowed.has(value || ''));
+    this.qualifyValue = isIncident ? 'INCIDENT' : 'NON_INCIDENT';
   }
 
   // --- Risks Handling ---
@@ -1407,8 +1361,10 @@ export class DashboardComponent implements OnInit {
     const selected = this.selectedEvent();
     if (!selected?.id || this.isSubmitting()) return;
 
-    if (!this.areQualificationImpactsComplete()) {
-      this.errorMsg.set('Renseignez les trois impacts CID avec Mineur, Majeur ou Critique.');
+    if (!this.eventForm.impactConfidentialite
+        || !this.eventForm.impactIntegrite
+        || !this.eventForm.impactDisponibilite) {
+      this.errorMsg.set('Renseignez les trois impacts Confidentialité, Intégrité et Disponibilité.');
       return;
     }
 
@@ -1711,21 +1667,17 @@ export class DashboardComponent implements OnInit {
     if (this.activeRecognition) this.activeRecognition.stop();
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
+    recognition.lang = this.getSpeechLocale(target);
     recognition.interimResults = false;
-    recognition.maxAlternatives = 5;
+    recognition.maxAlternatives = 3;
     recognition.continuous = false;
     this.activeVoiceSearch.set(target);
     this.activeRecognition = recognition;
 
     recognition.onresult = (event: any) => {
-      const finalResult = Array.from(event.results || []).find((result: any) => result.isFinal) as any
-        || event.results?.[event.results.length - 1];
-      const alternatives = Array.from(finalResult || []) as any[];
-      const candidates = alternatives
-        .map(item => String(item?.transcript || '').trim())
-        .filter(Boolean);
-      const rawText = this.selectBestVoiceCandidate(target, candidates);
+      const alternatives = Array.from(event.results?.[0] || []) as any[];
+      const rawText = (alternatives
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))[0]?.transcript || '').trim();
       const text = this.cleanVoiceSearchText(rawText);
 
       if (target === 'events') {
@@ -1733,22 +1685,18 @@ export class DashboardComponent implements OnInit {
         this.eventQualificationFilter = 'ALL';
         this.eventRssiFilter = 'ALL';
         this.eventSearch = text;
-      } else if (target === 'incidents') {
+      }
+      if (target === 'incidents') {
         this.incidentStateFilter = 'ALL';
         this.incidentSearch = text;
-      } else if (target === 'logs') {
-        this.logSearch = text;
-      } else {
-        this.assistantQuestion = rawText;
       }
+      if (target === 'logs') this.logSearch = text;
+      if (target === 'assistant') this.assistantQuestion = rawText;
 
       this.activeVoiceSearch.set(null);
       this.activeRecognition = null;
-      if (target !== 'assistant') {
-        const count = this.countVoiceMatches(target, text);
-        this.successMsg.set(rawText ? `Recherche vocale appliquée : « ${rawText} » — ${count} résultat(s).` : 'Aucun mot reconnu.');
-      }
-      this.cdr.detectChanges();
+      this.successMsg.set(rawText ? `Recherche vocale : « ${rawText} »` : 'Aucun mot reconnu.');
+      queueMicrotask(() => this.cdr.detectChanges());
     };
     recognition.onerror = (event: any) => {
       this.activeVoiceSearch.set(null);
@@ -1770,51 +1718,27 @@ export class DashboardComponent implements OnInit {
     recognition.start();
   }
 
-  private selectBestVoiceCandidate(target: 'events' | 'incidents' | 'logs' | 'assistant', candidates: string[]): string {
-    if (!candidates.length) return '';
-    if (target === 'assistant') return candidates[0];
-    return [...candidates].sort((left, right) => {
-      const rightScore = this.countVoiceMatches(target, this.cleanVoiceSearchText(right));
-      const leftScore = this.countVoiceMatches(target, this.cleanVoiceSearchText(left));
-      return rightScore - leftScore;
-    })[0];
-  }
-
-  private countVoiceMatches(target: 'events' | 'incidents' | 'logs', query: string): number {
-    const normalized = this.normalizeSearch(query);
-    if (!normalized) return 0;
-    if (target === 'events') {
-      return this.events().filter(event => this.matchesNormalizedSearch(this.normalizeSearch([
-        event.referenceEvenement, event.id, event.libelleErreur, event.descriptionDetaillee,
-        event.detecteParSource, event.declarePar, event.etat, event.qualification,
-        event.natureEvenement, event.idTicket, event.codeErreur, event.serviceOsAppli
-      ].filter(Boolean).join(' ')), normalized)).length;
-    }
-    if (target === 'incidents') {
-      return this.incidents().filter(incident => {
-        const event = this.getIncidentEvent(incident);
-        return this.matchesNormalizedSearch(this.normalizeSearch([
-          incident.id, event?.referenceEvenement, event?.id, event?.libelleErreur,
-          event?.descriptionDetaillee, incident.traitementEtat, incident.traitementResponsable,
-          incident.niveauImpact, incident.dureeIndisponibilite
-        ].filter(Boolean).join(' ')), normalized);
-      }).length;
-    }
-    return this.logs().filter(log => this.matchesNormalizedSearch(this.normalizeSearch([
-      log.username, log.action, log.timestamp, new Date(log.timestamp).toLocaleString('fr-FR')
-    ].filter(Boolean).join(' ')), normalized)).length;
-  }
-
   private getSpeechLocale(_target: 'events' | 'incidents' | 'logs' | 'assistant' | 'dictation'): string {
     return 'fr-FR';
   }
 
   private cleanVoiceSearchText(value: string): string {
-    return String(value || '')
-      .replace(/^(cherche|chercher|recherche|rechercher|trouve|trouver|affiche|afficher|montre|montrer|filtre|filtrer|search|find|show|display|filter)(-moi| moi| me)?\s+/i, '')
-      .replace(/\b(s'il vous plaît|svp|please)\b/gi, '')
-      .replace(/\s+/g, ' ')
+    const commandWords = new Set([
+      'cherche', 'chercher', 'recherche', 'rechercher', 'trouve', 'trouver', 'affiche', 'afficher',
+      'montre', 'montrer', 'filtre', 'filtrer', 'search', 'find', 'show', 'display', 'filter',
+      'moi', 'me', 'pour', 'les', 'des', 'dans', 'le', 'la', 'un', 'une', 'please', 'for'
+    ]);
+    const normalized = String(value || '')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9À-ÿ_-]+/g, ' ')
       .trim();
+    const cleaned = normalized
+      .split(/\s+/)
+      .filter(token => token && !commandWords.has(token.toLowerCase()))
+      .join(' ')
+      .trim();
+    return cleaned || value.trim();
   }
 
   logout(): void {
@@ -1871,13 +1795,9 @@ export class DashboardComponent implements OnInit {
             : 'Texte généré par le modèle IA local. Vérifiez-le avant l’enregistrement.');
           this.cdr.detectChanges();
         },
-        error: () => {
-          const fallback = this.expandEventDescription(seed);
-          (targetObject as any)[targetField] = fallback;
+        error: err => {
           this.aiGeneratingField.set(null);
-          this.successMsg.set('Texte préparé localement. Lancez SETUP-LOCAL-AI.cmd pour activer le modèle génératif complet.');
-          this.errorMsg.set('');
-          this.cdr.detectChanges();
+          this.errorMsg.set(err?.error?.message || 'La génération IA locale n’est pas disponible.');
         }
       });
       return;
@@ -2004,18 +1924,6 @@ export class DashboardComponent implements OnInit {
     if (!(this.eventForm as any)[field]) {
       (this.eventForm as any)[field] = value;
     }
-  }
-
-  private expandEventDescription(seed: string): string {
-    const cleaned = String(seed || '').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
-    const context = this.normalizeSearch(`${this.eventForm.libelleErreur} ${cleaned}`);
-    if (context.includes('auth')) {
-      return `${cleaned}. Des anomalies d’authentification ont été observées sur le service concerné et peuvent perturber l’accès des utilisateurs ou signaler une tentative non autorisée. Les journaux de connexion, les comptes touchés et les adresses sources doivent être analysés afin de confirmer l’origine et le périmètre.`;
-    }
-    if (context.includes('reseau') || context.includes('indisponibilite')) {
-      return `${cleaned}. Une dégradation de la connectivité affecte le périmètre concerné et peut interrompre l’accès aux applications ou services métiers. Les équipements, la supervision et les changements récents doivent être vérifiés avant un rétablissement contrôlé.`;
-    }
-    return `${cleaned}. L’événement nécessite une analyse technique afin d’identifier son origine, le périmètre affecté et les impacts réels sur le service. Les journaux disponibles, les changements récents et les mesures déjà entreprises doivent être documentés avant la qualification.`;
   }
 
   private applySmartDateFromTitle(title: string): void {

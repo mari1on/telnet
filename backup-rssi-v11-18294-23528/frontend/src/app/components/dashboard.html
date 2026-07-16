@@ -542,7 +542,7 @@
         <div>
           <span class="eyebrow">Analyse intelligente des événements, incidents et risques</span>
           <h1 class="view-title">Assistant RSSI</h1>
-          <p>Posez une question sur les événements, les incidents, les risques ou le fonctionnement de TELNET. L’assistant utilise les données enregistrées au moment de chaque question.</p>
+          <p>Décrivez un événement par son titre, son ticket, son code erreur ou son contexte. L’assistant peut aussi répondre aux questions sur le site.</p>
         </div>
         <div class="assistant-heading-actions">
           <button type="button" class="assistant-speech-toggle" [class.enabled]="assistantAutoSpeak()" (click)="toggleAssistantSpeech()" [attr.aria-pressed]="assistantAutoSpeak()">
@@ -726,6 +726,24 @@
               </div>
             </div>
 
+            <p class="password-rule">8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&amp;).</p>
+          </div>
+
+          <div class="settings-preference-row">
+            <div>
+              <strong>Send me product updates and tips</strong>
+              <p>Recevoir des conseils et les informations importantes sur le produit.</p>
+            </div>
+            <button
+              type="button"
+              class="settings-toggle"
+              [class.enabled]="productUpdates()"
+              [attr.aria-pressed]="productUpdates()"
+              aria-label="Activer ou désactiver les mises à jour produit"
+              (click)="toggleProductUpdates()"
+            >
+              <span></span>
+            </button>
           </div>
 
           <div class="settings-actions">
@@ -1227,6 +1245,10 @@
               <label for="detectorSettingsEmail">Email</label>
               <input id="detectorSettingsEmail" type="email" name="detectorSettingsEmail" class="settings-input" [(ngModel)]="userForm.email" autocomplete="email" required />
             </div>
+            <div class="settings-field">
+              <label for="detectorSettingsRole">Rôle système</label>
+              <input id="detectorSettingsRole" type="text" class="settings-input" [value]="userForm.role" disabled />
+            </div>
           </div>
 
           <div class="detector-security-panel">
@@ -1241,19 +1263,14 @@
               </div>
               <div class="settings-field">
                 <label for="detectorSettingsNewPassword">Nouveau mot de passe</label>
-                <input id="detectorSettingsNewPassword" type="password" name="detectorSettingsNewPassword" class="settings-input" [class.input-invalid]="showNewPasswordRule()" [(ngModel)]="userForm.newPassword" autocomplete="new-password" placeholder="••••••••" />
-                @if (showNewPasswordRule()) {
-                  <p class="field-validation-error">8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&amp;).</p>
-                }
+                <input id="detectorSettingsNewPassword" type="password" name="detectorSettingsNewPassword" class="settings-input" [(ngModel)]="userForm.newPassword" autocomplete="new-password" placeholder="••••••••" />
               </div>
               <div class="settings-field">
                 <label for="detectorSettingsConfirmPassword">Confirmer le mot de passe</label>
-                <input id="detectorSettingsConfirmPassword" type="password" name="detectorSettingsConfirmPassword" class="settings-input" [class.input-invalid]="showPasswordMismatch()" [(ngModel)]="userForm.confirmPassword" autocomplete="new-password" placeholder="••••••••" />
-                @if (showPasswordMismatch()) {
-                  <p class="field-validation-error">La confirmation ne correspond pas au nouveau mot de passe.</p>
-                }
+                <input id="detectorSettingsConfirmPassword" type="password" name="detectorSettingsConfirmPassword" class="settings-input" [(ngModel)]="userForm.confirmPassword" autocomplete="new-password" placeholder="••••••••" />
               </div>
             </div>
+            <p class="password-rule">8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&amp;).</p>
           </div>
 
           <div class="detector-settings-actions">
@@ -1282,10 +1299,7 @@
       <form ngNativeValidate (ngSubmit)="saveEvent()">
         <div class="modal-body">
           <div class="form-grid">
-            <div class="form-group col-span-2 event-reference-field">
-              <label for="referenceEvenement">ID événement</label>
-              <input type="text" id="referenceEvenement" name="referenceEvenement" class="form-control" [(ngModel)]="eventForm.referenceEvenement" readonly />
-            </div>
+  
 
             <div class="form-group col-span-2">
               <label for="descriptionDetaillee" style="display:flex; justify-content:space-between;">
@@ -1322,6 +1336,7 @@
             <div class="form-group">
               <label for="idTicket">ID Ticket (Helpdesk) *</label>
               <input type="text" id="idTicket" name="idTicket" class="form-control" [(ngModel)]="eventForm.idTicket" required maxlength="120" placeholder="Ex : HD-2026-00451" />
+              <small>La valeur doit être unique.</small>
             </div>
             <div class="form-group">
   <label for="serviceOsAppli">Serveur / OS / API</label>
@@ -1360,6 +1375,7 @@
 <div class="form-group">
   <label for="codeErreur">Code erreur *</label>
   <input type="text" id="codeErreur" name="codeErreur" class="form-control" [(ngModel)]="eventForm.codeErreur" required maxlength="120" placeholder="Ex : AUTH-401-07" />
+  <small>La valeur doit être unique.</small>
 </div>
 
 
@@ -1433,9 +1449,8 @@
       </div>
       <form (ngSubmit)="submitQualification()">
         <div class="modal-body">
-          <div class="qualification-rule-banner">
-            <strong>Renseignez obligatoirement les trois impacts CID.</strong>
-            <span>L’événement est classé comme incident dès qu’au moins un impact est « Critique ».</span>
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin-bottom: 1rem; border-radius: 4px; color: #92400e;">
+            <strong>⚠️ Important:</strong> Renseignez les trois axes CID. La valeur « Aucun » est acceptée lorsqu’il n’y a pas d’impact.
           </div>
           
           <div class="form-grid">
@@ -1450,8 +1465,7 @@
             </div>
             <div class="form-group">
               <label for="impactConfidentialite">Impact Confidentialité</label>
-              <select id="impactConfidentialite" name="impactConfidentialite" class="form-control" [(ngModel)]="eventForm.impactConfidentialite" (ngModelChange)="onQualificationChange()" required>
-                <option value="" disabled>Choisir un niveau</option>
+              <select id="impactConfidentialite" name="impactConfidentialite" class="form-control" [(ngModel)]="eventForm.impactConfidentialite" (ngModelChange)="onQualificationChange()">
                 @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
               </select>
             </div>
@@ -1467,8 +1481,7 @@
 
             <div class="form-group">
               <label for="impactIntegrite">Impact Intégrité</label>
-              <select id="impactIntegrite" name="impactIntegrite" class="form-control" [(ngModel)]="eventForm.impactIntegrite" (ngModelChange)="onQualificationChange()" required>
-                <option value="" disabled>Choisir un niveau</option>
+              <select id="impactIntegrite" name="impactIntegrite" class="form-control" [(ngModel)]="eventForm.impactIntegrite" (ngModelChange)="onQualificationChange()">
                 @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
               </select>
             </div>
@@ -1484,8 +1497,7 @@
 
             <div class="form-group">
               <label for="impactDisponibilite">Impact Disponibilité</label>
-              <select id="impactDisponibilite" name="impactDisponibilite" class="form-control" [(ngModel)]="eventForm.impactDisponibilite" (ngModelChange)="onQualificationChange()" required>
-                <option value="" disabled>Choisir un niveau</option>
+              <select id="impactDisponibilite" name="impactDisponibilite" class="form-control" [(ngModel)]="eventForm.impactDisponibilite" (ngModelChange)="onQualificationChange()">
                 @for (opt of impactOptions; track opt) { <option [value]="opt">{{ opt }}</option> }
               </select>
             </div>
@@ -1727,7 +1739,12 @@
             </div>
             @if (incidentForm.changementDeclenche) {
               <div class="form-group col-span-2">
-                <label for="changementDeclencheDescription">Veuillez détailler le changement</label>
+                <label for="changementDeclencheDescription" style="display:flex; justify-content:space-between; align-items:center;">
+                  <span>Veuillez détailler le changement</span>
+                  <button type="button" class="btn-icon" (click)="magicFill('changementDeclencheDescription', 'incident')" title="Générer avec l'IA ✨">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M2 12l5.25-1.5L8.75 5.25 10.25 10.5 15.5 12l-5.25 1.5L8.75 18.75 7.25 13.5 2 12z"></path><path d="M16 3l1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3z"></path></svg>
+                  </button>
+                </label>
                 <textarea id="changementDeclencheDescription" name="changementDeclencheDescription" class="form-control" rows="2" [(ngModel)]="incidentForm.changementDeclencheDescription"></textarea>
               </div>
             }
@@ -1759,29 +1776,24 @@
           </div>
           <div class="form-grid">
             <div class="form-group col-span-2">
-              <div class="risk-catalog-panel">
-                <div class="risk-catalog-heading">
-                  <div>
-                    <span>Catalogue des risques</span>
-                    <strong>Réutiliser un risque connu ou en ajouter un nouveau</strong>
-                  </div>
-                  <button type="button" class="risk-new-button" (click)="addRisque()">Nouveau risque</button>
-                </div>
-                <div class="risk-catalog-controls">
-                  <select id="existingRiskSelection" name="existingRiskSelection" class="form-control" [(ngModel)]="selectedExistingRiskReference" aria-label="Choisir un risque existant">
+              <div class="risk-catalog-toolbar">
+                <div class="risk-catalog-select">
+                  <label for="existingRiskSelection">Sélectionner un risque existant</label>
+                  <select id="existingRiskSelection" name="existingRiskSelection" class="form-control" [(ngModel)]="selectedExistingRiskReference">
                     <option value="">Choisir par ID et description</option>
                     @for (existingRisk of getExistingRiskCatalog(); track existingRisk.reference) {
                       <option [value]="existingRisk.reference" [title]="existingRisk.description || ''">{{ getRiskOptionLabel(existingRisk) }}</option>
                     }
                   </select>
-                  <button type="button" class="risk-add-existing-button" (click)="addExistingRiskFromCatalog()">Ajouter</button>
                 </div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="addExistingRiskFromCatalog()">Ajouter la sélection</button>
+                <button type="button" class="btn btn-primary btn-sm" (click)="addRisque()">+ Nouveau risque</button>
               </div>
 
               @for (risque of incidentForm.risques; track $index; let i = $index) {
                 <div class="risk-card">
                   <div class="form-group risk-reference-field">
-                    <label>ID du risque</label>
+                    <label>ID du risque <span class="optional-label">(facultatif)</span></label>
                     <input type="text" class="form-control" [(ngModel)]="risque.reference" name="reference{{ i }}" placeholder="Ex : RSK-005">
                   </div>
                   <div class="form-group risk-description-field">

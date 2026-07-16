@@ -17,9 +17,6 @@ public class Evenement {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "reference_evenement", unique = true, length = 64)
-    private String referenceEvenement;
-
     @Lob
     @Column(columnDefinition = "TEXT")
     private String descriptionDetaillee;
