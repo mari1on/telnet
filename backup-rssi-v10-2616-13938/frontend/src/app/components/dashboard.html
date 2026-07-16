@@ -542,7 +542,7 @@
         <div>
           <span class="eyebrow">Analyse intelligente des événements, incidents et risques</span>
           <h1 class="view-title">Assistant RSSI</h1>
-          <p>Décrivez un événement par son titre, son ticket, son code erreur ou son contexte. L’assistant peut aussi répondre aux questions sur le site.</p>
+          <p>Posez une question sur l’événement, ses risques, les cas similaires, les actions recommandées ou le plan d’incident.</p>
         </div>
         <div class="assistant-heading-actions">
           <button type="button" class="assistant-speech-toggle" [class.enabled]="assistantAutoSpeak()" (click)="toggleAssistantSpeech()" [attr.aria-pressed]="assistantAutoSpeak()">
@@ -554,6 +554,32 @@
       </div>
 
       <section class="assistant-layout">
+        <aside class="assistant-context-card">
+          <h2>Contexte à analyser</h2>
+          <label for="assistantEvent">Événement</label>
+          <select id="assistantEvent" [(ngModel)]="assistantSelectedEventId">
+            <option [ngValue]="null">Vue globale du site</option>
+            @for (event of events(); track event.id) {
+              <option [ngValue]="event.id">#EV-{{ event.id }} — {{ event.libelleErreur || 'Sans nom' }}</option>
+            }
+          </select>
+
+          @if (assistantSelectedEventId) {
+            @for (event of events(); track event.id) {
+              @if (event.id === assistantSelectedEventId) {
+                <div class="assistant-event-summary">
+                  <strong>{{ event.libelleErreur || 'Sans nom' }}</strong>
+                  <span>{{ event.natureEvenement || 'Nature non définie' }}</span>
+                  <span>{{ event.serviceOsAppli || 'Service non défini' }}</span>
+                  <span>Qualification : {{ event.qualification || 'NON_QUALIFIE' }}</span>
+                </div>
+              }
+            }
+          }
+
+
+        </aside>
+
         <section class="assistant-chat-card">
           <div class="assistant-messages" aria-live="polite">
             @for (message of assistantMessages(); track $index) {
@@ -565,13 +591,13 @@
             @if (assistantLoading()) {
               <article class="chat-bubble assistant-bubble loading-bubble">
                 <span>Assistant RSSI</span>
-                <p>Analyse de la question et des données TELNET…</p>
+                <p>Analyse de l’historique en cours…</p>
               </article>
             }
           </div>
 
           @if (assistantResult(); as result) {
-            @if (result.matches.length > 0 || result.actions.length > 0 || result.askToFillIncident) {
+            @if (result.matches.length > 0 || result.actions.length > 0) {
               <div class="assistant-result-card">
                 <div class="assistant-result-heading">
                   <div>
@@ -607,17 +633,14 @@
                       <li>{{ action }}</li>
                     }
                   </ol>
-                }
 
-                @if (result.askToFillIncident) {
-                  <div class="assistant-fill-request">
-                    <p>{{ result.confirmationPrompt || 'Voulez-vous que je remplisse le plan d’incident avec cette analyse ?' }}</p>
-                    <div class="assistant-proposal-actions">
-                      <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">Annuler</button>
-                      <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()" [disabled]="assistantAutofillActive()">
-                        {{ assistantAutofillActive() ? 'Remplissage en cours…' : 'Oui, remplir le plan' }}
+                  <div class="assistant-proposal-actions">
+                    <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">Annuler</button>
+                    @if (assistantSelectedEventId) {
+                      <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()">
+                        Confirmer et préparer le plan d’incident
                       </button>
-                    </div>
+                    }
                   </div>
                 }
               </div>
@@ -1274,9 +1297,7 @@
           </div>
 
           <div class="detector-settings-actions">
-            <button type="button" class="detector-settings-back detector-settings-back-icon" (click)="switchTab('events')" title="Retour aux déclarations" aria-label="Retour aux déclarations">
-              <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
-            </button>
+            <button type="button" class="detector-settings-back" (click)="switchTab('events')">Retour aux déclarations</button>
             <button type="submit" class="detector-settings-save" [disabled]="isSubmitting()">
               {{ isSubmitting() ? 'Enregistrement…' : 'Enregistrer les changements' }}
             </button>
@@ -1334,9 +1355,8 @@
             </div>
 
             <div class="form-group">
-              <label for="idTicket">ID Ticket (Helpdesk) *</label>
-              <input type="text" id="idTicket" name="idTicket" class="form-control" [(ngModel)]="eventForm.idTicket" required maxlength="120" placeholder="Ex : HD-2026-00451" />
-              <small>La valeur doit être unique.</small>
+              <label for="idTicket">ID Ticket (généré automatiquement)</label>
+              <input type="text" id="idTicket" name="idTicket" class="form-control auto-id-field" [(ngModel)]="eventForm.idTicket" readonly />
             </div>
             <div class="form-group">
   <label for="serviceOsAppli">Serveur / OS / API</label>
@@ -1373,9 +1393,8 @@
 </div>
 
 <div class="form-group">
-  <label for="codeErreur">Code erreur *</label>
-  <input type="text" id="codeErreur" name="codeErreur" class="form-control" [(ngModel)]="eventForm.codeErreur" required maxlength="120" placeholder="Ex : AUTH-401-07" />
-  <small>La valeur doit être unique.</small>
+  <label for="codeErreur">Code erreur (généré automatiquement)</label>
+  <input type="text" id="codeErreur" name="codeErreur" class="form-control auto-id-field" [(ngModel)]="eventForm.codeErreur" readonly />
 </div>
 
 
@@ -1511,6 +1530,74 @@
               <textarea id="commentaireDisponibilite" name="commentaireDisponibilite" class="form-control" rows="2" [(ngModel)]="eventForm.commentaireDisponibilite"></textarea>
             </div>
           </div>
+          <div class="qualification-result" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; font-weight: 600; text-align: center;"
+               [style.backgroundColor]="qualifyValue === 'INCIDENT' ? '#fee2e2' : '#dcfce7'"
+               [style.color]="qualifyValue === 'INCIDENT' ? '#991b1b' : '#166534'">
+            Résultat de la qualification :
+            {{ qualifyValue === 'INCIDENT' ? 'INCIDENT DE SÉCURITÉ' : 'CLASSÉ SANS SUITE' }}
+          </div>
+
+          @if (qualifyValue === 'INCIDENT') {
+            <section class="qualification-risk-section" aria-labelledby="qualification-risk-title">
+              <div class="qualification-risk-heading">
+                <div>
+                  <span class="qualification-step">8</span>
+                  <div>
+                    <h4 id="qualification-risk-title">Risques identifiés suite à l'événement</h4>
+                    <p>Sélectionnez un risque connu ou créez un nouveau risque avec un ID généré automatiquement.</p>
+                  </div>
+                </div>
+                <span class="qualification-risk-count">{{ incidentForm.risques.length }} sélectionné(s)</span>
+              </div>
+
+              <div class="qualification-risk-picker">
+                <div class="qualification-risk-select-group">
+                  <label for="qualificationExistingRisk">Risque existant</label>
+                  <select id="qualificationExistingRisk" name="qualificationExistingRisk" class="form-control" [(ngModel)]="selectedExistingRiskReference">
+                    <option value="">Choisir par ID et description</option>
+                    @for (existingRisk of getExistingRiskCatalog(); track existingRisk.reference) {
+                      <option [value]="existingRisk.reference">{{ getRiskOptionLabel(existingRisk) }}</option>
+                    }
+                  </select>
+                  @if (getSelectedExistingRisk()) {
+                    <div class="qualification-risk-preview">
+                      <strong>{{ getSelectedExistingRisk()?.reference }}</strong>
+                      <p>{{ getSelectedExistingRisk()?.description || 'Aucune description disponible.' }}</p>
+                    </div>
+                  }
+                </div>
+
+                <div class="qualification-risk-actions">
+                  <button type="button" class="btn qualification-add-existing" (click)="addExistingRiskFromCatalog()" [disabled]="!selectedExistingRiskReference">
+                    Ajouter la sélection
+                  </button>
+                  <button type="button" class="btn qualification-new-risk" (click)="addRisque()">
+                    + Nouveau risque
+                  </button>
+                </div>
+              </div>
+
+              @if (incidentForm.risques.length > 0) {
+                <div class="qualification-selected-risks">
+                  @for (risque of incidentForm.risques; track $index; let i = $index) {
+                    <article class="qualification-selected-risk">
+                      <div class="qualification-risk-id">
+                        <span>ID du risque</span>
+                        <strong>{{ risque.reference }}</strong>
+                      </div>
+                      <div class="qualification-risk-description">
+                        <label for="qualificationRiskDescription{{ i }}">Description</label>
+                        <textarea id="qualificationRiskDescription{{ i }}" class="form-control" rows="2" [(ngModel)]="risque.description" name="qualificationRiskDescription{{ i }}" placeholder="Décrivez le risque identifié"></textarea>
+                      </div>
+                      <button type="button" class="qualification-risk-remove" (click)="removeRisque(i)" aria-label="Retirer ce risque">Retirer</button>
+                    </article>
+                  }
+                </div>
+              } @else {
+                <div class="qualification-risk-empty">Aucun risque n'est encore associé à cette qualification.</div>
+              }
+            </section>
+          }
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="showQualifyForm.set(false)">Annuler</button>
@@ -1793,13 +1880,12 @@
               @for (risque of incidentForm.risques; track $index; let i = $index) {
                 <div class="risk-card">
                   <div class="form-group risk-reference-field">
-                    <label>ID du risque <span class="optional-label">(facultatif)</span></label>
-                    <input type="text" class="form-control" [(ngModel)]="risque.reference" name="reference{{ i }}" placeholder="Ex : RSK-005">
+                    <label>ID du risque</label>
+                    <input type="text" class="form-control auto-id-field" [(ngModel)]="risque.reference" name="reference{{ i }}" readonly>
                   </div>
                   <div class="form-group risk-description-field">
-                    <label class="required-risk-label">Libellé / Description du risque *</label>
-                    <textarea class="form-control" rows="3" [(ngModel)]="risque.description" name="description{{ i }}" required placeholder="Description obligatoire du risque"></textarea>
-                    <small class="required-risk-help">La description du risque est obligatoire.</small>
+                    <label>Libellé / Description du risque</label>
+                    <textarea class="form-control" rows="3" [(ngModel)]="risque.description" name="description{{ i }}" placeholder="Décrire clairement le risque"></textarea>
                   </div>
                   <button type="button" class="btn btn-danger risk-remove-button" (click)="removeRisque(i)">Supprimer</button>
                 </div>

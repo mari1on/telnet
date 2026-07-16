@@ -108,29 +108,9 @@ interface AssistantMatch {
   reason?: string;
 }
 
-interface AssistantIncidentDraft {
-  typesIncident?: string[];
-  niveauImpact?: string;
-  dureeIndisponibilite?: string;
-  mesureAction?: string;
-  mesureEtat?: string;
-  traitementAction?: string;
-  traitementEtat?: string;
-  preconisation?: string;
-  actionCorrective?: string;
-  impactContinuite?: boolean;
-  impactContinuiteDescription?: string;
-  changementDeclenche?: boolean;
-  changementDeclencheDescription?: string;
-  risques?: Risque[];
-}
-
 interface AssistantResponse {
   answer: string;
   confirmationPrompt: string;
-  askToFillIncident?: boolean;
-  selectedEventId?: number | null;
-  incidentDraft?: AssistantIncidentDraft;
   similarFound: boolean;
   matches: AssistantMatch[];
   actions: string[];
@@ -171,16 +151,13 @@ export class DashboardComponent implements OnInit {
 
   // Assistant RSSI local (moteur Python, sans service d'IA externe)
   assistantSelectedEventId: number | null = null;
-  assistantInferredEventId: number | null = null;
-  aiGeneratingField = signal<string | null>(null);
-  assistantAutofillActive = signal(false);
   assistantQuestion = '';
   assistantLoading = signal(false);
   assistantResult = signal<AssistantResponse | null>(null);
   assistantMessages = signal<ChatMessage[]>([
     {
       role: 'assistant',
-      text: 'Posez une question sur TELNET ou décrivez un événement par son titre, son ticket, son code erreur ou son contexte.'
+      text: 'Posez une question sur le site, les événements, les incidents ou les risques. La sélection d’un événement est facultative.'
     }
   ]);
 
@@ -580,6 +557,17 @@ export class DashboardComponent implements OnInit {
     ) || null;
   }
 
+  private getNextRiskReference(): string {
+    const refs = [
+      ...this.getExistingRiskCatalog().map(risk => risk.reference || ''),
+      ...(this.incidentForm.risques || []).map(risk => risk.reference || '')
+    ];
+    const max = refs.reduce((currentMax, ref) => {
+      const match = ref.match(/RSK[-_ ]?(\d+)/i);
+      return match ? Math.max(currentMax, Number(match[1])) : currentMax;
+    }, 0);
+    return `RSK-${String(max + 1).padStart(3, '0')}`;
+  }
 
   addExistingRiskFromCatalog(): void {
     const selected = this.getExistingRiskCatalog().find(
@@ -824,8 +812,6 @@ export class DashboardComponent implements OnInit {
     if (!this.isFilled(event.dateHeureDetection)) return 'La date et l\'heure de détection sont obligatoires.';
     if (!this.isFilled(event.declarePar)) return 'Le champ « Détecté par » est obligatoire.';
     if (!this.isFilled(event.detecteParSource)) return 'La source de détection est obligatoire.';
-    if (!this.isFilled(event.idTicket)) return "L'ID Ticket est obligatoire et doit être unique.";
-    if (!this.isFilled(event.codeErreur)) return 'Le code erreur est obligatoire et doit être unique.';
     if (!this.isFilled(event.causesPossibles)) return 'Les causes possibles sont obligatoires.';
     if (!this.isFilled(event.etat)) return 'L\'état de l\'événement est obligatoire.';
     if (!this.isFilled(event.natureEvenement)) return 'La nature de l\'événement est obligatoire.';
@@ -909,6 +895,7 @@ export class DashboardComponent implements OnInit {
   // --- Evenement Operations ---
   openCreateEvent(): void {
     this.eventForm = this.initEventForm();
+    this.ensureEventIdentifiers();
     this.eventForm.declarePar = this.apiService.currentUser()?.username || '';
     this.selectedEvent.set(null);
     this.showEventForm.set(true);
@@ -928,7 +915,7 @@ export class DashboardComponent implements OnInit {
   }
 
   private prepareAssistantSelection(): void {
-    // L'événement est déduit automatiquement depuis la question et la conversation.
+    // La vue globale est volontairement conservée quand aucun événement n'est sélectionné.
   }
 
   sendAssistantMessage(): void {
@@ -1003,15 +990,9 @@ export class DashboardComponent implements OnInit {
 
   applyAssistantActions(): void {
     const result = this.assistantResult();
-    const eventId = result?.selectedEventId ?? this.assistantInferredEventId;
-    if (!result || !eventId) {
-      this.errorMsg.set("L'assistant n'a pas identifié l'événement concerné. Mentionnez son titre, son ticket ou son code erreur.");
-      return;
-    }
-
-    const event = this.events().find(item => item.id === eventId);
-    if (!event) {
-      this.errorMsg.set('Événement introuvable.');
+    const eventId = this.assistantSelectedEventId;
+    if (!result || !eventId || result.actions.length === 0) {
+      this.errorMsg.set('Aucune action proposée à appliquer.');
       return;
     }
 
@@ -1019,6 +1000,11 @@ export class DashboardComponent implements OnInit {
     if (existingIncident) {
       this.openEditIncident(existingIncident);
     } else {
+      const event = this.events().find(item => item.id === eventId);
+      if (!event) {
+        this.errorMsg.set('Événement introuvable.');
+        return;
+      }
       this.selectedEvent.set(event);
       this.selectedIncident.set(null);
       this.incidentForm = this.initIncidentForm(eventId);
@@ -1026,43 +1012,13 @@ export class DashboardComponent implements OnInit {
       this.showIncidentForm.set(true);
     }
 
-    const draft = result.incidentDraft || {};
     const actionsText = result.actions.map((action, index) => `${index + 1}. ${action}`).join('\n');
-    this.assistantAutofillActive.set(true);
-    this.animateIncidentDraft([
-      ['typesIncident', draft.typesIncident || this.incidentForm.typesIncident],
-      ['niveauImpact', draft.niveauImpact || this.incidentForm.niveauImpact],
-      ['mesureAction', draft.mesureAction || this.incidentForm.mesureAction],
-      ['mesureEtat', draft.mesureEtat || this.incidentForm.mesureEtat || 'En cours'],
-      ['traitementAction', draft.traitementAction || actionsText || this.incidentForm.traitementAction],
-      ['traitementEtat', draft.traitementEtat || this.incidentForm.traitementEtat || 'En cours'],
-      ['preconisation', draft.preconisation || result.answer || this.incidentForm.preconisation],
-      ['actionCorrective', draft.actionCorrective || this.incidentForm.actionCorrective],
-      ['impactContinuite', draft.impactContinuite ?? this.incidentForm.impactContinuite],
-      ['impactContinuiteDescription', draft.impactContinuiteDescription || this.incidentForm.impactContinuiteDescription],
-      ['changementDeclenche', draft.changementDeclenche ?? this.incidentForm.changementDeclenche],
-      ['changementDeclencheDescription', draft.changementDeclencheDescription || this.incidentForm.changementDeclencheDescription],
-      ['risques', (draft.risques || this.incidentForm.risques || []).map(risk => ({ ...risk, reference: risk.reference || '' }))]
-    ]);
-  }
-
-  private animateIncidentDraft(entries: Array<[keyof Incident, any]>): void {
-    const useful = entries.filter(([, value]) => value !== undefined && value !== null && value !== '');
-    useful.forEach(([field, value], index) => {
-      window.setTimeout(() => {
-        (this.incidentForm as any)[field] = value;
-        this.cdr.detectChanges();
-        if (index === useful.length - 1) {
-          this.assistantAutofillActive.set(false);
-          this.successMsg.set("Le plan d'incident a été rempli progressivement par l'assistant. Vérifiez chaque champ avant d'enregistrer.");
-          this.errorMsg.set('');
-        }
-      }, index * 240);
-    });
-    if (useful.length === 0) {
-      this.assistantAutofillActive.set(false);
-      this.errorMsg.set("L'assistant n'a fourni aucun champ exploitable pour le plan d'incident.");
-    }
+    this.incidentForm.traitementAction = this.incidentForm.traitementAction || actionsText;
+    this.incidentForm.preconisation = this.incidentForm.preconisation || result.answer;
+    this.incidentForm.evenementsSimilaires = result.similarFound ? 'Oui' : 'Non';
+    this.incidentForm.evenementsDetailsDescription = this.incidentForm.evenementsDetailsDescription
+      || result.matches.map(match => `#EV-${match.eventId} — ${match.title}`).join('\n');
+    this.successMsg.set('Les actions confirmées ont été préparées dans le plan d’incident. Vérifiez-les avant de sauvegarder.');
   }
 
   cancelAssistantProposal(): void {
@@ -1084,11 +1040,10 @@ export class DashboardComponent implements OnInit {
   clearAssistantConversation(): void {
     this.assistantResult.set(null);
     this.assistantQuestion = '';
-    this.assistantInferredEventId = null;
     this.assistantMessages.set([
       {
         role: 'assistant',
-        text: 'Nouvelle conversation prête. Décrivez l’événement par son titre, son ticket, son code erreur ou son contexte.'
+        text: 'Nouvelle conversation prête. Posez une question globale ou sélectionnez un événement précis.'
       }
     ]);
   }
@@ -1204,8 +1159,7 @@ export class DashboardComponent implements OnInit {
       this.errorMsg.set(validationError);
       return;
     }
-    this.eventForm.idTicket = this.eventForm.idTicket.trim();
-    this.eventForm.codeErreur = this.eventForm.codeErreur.trim();
+    this.ensureEventIdentifiers();
     this.eventForm.impactMineur = this.eventForm.impactNiveau === 'Mineur';
 
     if (this.isSubmitting()) return;
@@ -1350,7 +1304,7 @@ export class DashboardComponent implements OnInit {
 
   // --- Risks Handling ---
   addRisque(): void {
-    this.incidentForm.risques.push({ reference: '', description: '' });
+    this.incidentForm.risques.push({ reference: this.getNextRiskReference(), description: '' });
   }
 
   removeRisque(index: number): void {
@@ -1399,20 +1353,39 @@ export class DashboardComponent implements OnInit {
 
         const existingIncident = this.findIncidentForEvent(selected.id!);
         if (existingIncident?.id) {
-          this.isSubmitting.set(false);
-          this.openEditIncident(existingIncident);
-          this.successMsg.set('Qualification enregistrée. Le plan d’incident existant est ouvert.');
-          this.loadEvents();
-          this.loadLogs();
+          const updatedIncident = this.sanitizeIncidentPayload({
+            ...existingIncident,
+            ...this.incidentForm,
+            id: existingIncident.id,
+            evenement: { ...(existingIncident.evenement || {}), id: selected.id! },
+            risques: (this.incidentForm.risques || []).map(risk => ({ ...risk }))
+          });
+          this.apiService.updateIncident(existingIncident.id, updatedIncident).subscribe({
+            next: (savedIncident) => {
+              this.incidents.update(items => items.map(item => item.id === savedIncident.id ? savedIncident : item));
+              this.openEditIncident(savedIncident);
+              this.successMsg.set('Qualification et risques enregistrés. Le plan d’incident existant est ouvert.');
+              this.isSubmitting.set(false);
+              this.loadEvents();
+              this.loadIncidents();
+              this.loadLogs();
+            },
+            error: (err) => {
+              this.isSubmitting.set(false);
+              this.errorMsg.set(err?.error?.message || 'La qualification est enregistrée, mais les risques du plan n’ont pas pu être mis à jour.');
+            }
+          });
           return;
         }
 
-        const emptyIncident = this.sanitizeIncidentPayload(this.initIncidentForm(selected.id!));
-        this.apiService.createIncident(emptyIncident).subscribe({
+        const payload = this.sanitizeIncidentPayload({ ...this.incidentForm, evenement: { id: selected.id! } });
+        this.apiService.createIncident(payload).subscribe({
           next: (savedIncident) => {
-            this.incidents.update(items => [...items, savedIncident]);
+            this.incidents.update(items => items.some(item => item.id === savedIncident.id)
+              ? items.map(item => item.id === savedIncident.id ? savedIncident : item)
+              : [...items, savedIncident]);
             this.openEditIncident(savedIncident);
-            this.successMsg.set('Événement qualifié comme incident. Complétez maintenant le plan d’incident.');
+            this.successMsg.set('Événement qualifié comme incident. Le plan d’incident est maintenant ouvert.');
             this.isSubmitting.set(false);
             this.loadEvents();
             this.loadIncidents();
@@ -1469,8 +1442,7 @@ export class DashboardComponent implements OnInit {
     this.incidentForm.traitementHeureCloture = this.toTimeInputValue(incident.traitementHeureCloture);
     this.incidentForm.risques = (this.incidentForm.risques || []).map(risk => ({
       ...risk,
-      reference: (risk.reference || '').trim(),
-      description: (risk.description || '').trim()
+      reference: risk.reference || this.getNextRiskReference()
     }));
     this.onUnavailabilityTimeChange();
     this.showIncidentForm.set(true);
@@ -1591,15 +1563,9 @@ export class DashboardComponent implements OnInit {
     }
 
     this.onUnavailabilityTimeChange();
-    const missingRiskDescription = (this.incidentForm.risques || []).findIndex(risk => !(risk.description || '').trim());
-    if (missingRiskDescription >= 0) {
-      this.errorMsg.set(`La description du risque n°${missingRiskDescription + 1} est obligatoire.`);
-      return;
-    }
     this.incidentForm.risques = (this.incidentForm.risques || []).map(risk => ({
       ...risk,
-      reference: (risk.reference || '').trim(),
-      description: (risk.description || '').trim()
+      reference: risk.reference || this.getNextRiskReference()
     }));
 
     // If we're closing, ensure traitementEtat matches
@@ -1653,6 +1619,26 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  private ensureEventIdentifiers(): void {
+    if (!this.isFilled(this.eventForm.idTicket)) {
+      this.eventForm.idTicket = this.generateLocalIdentifier('TCK');
+    }
+    if (!this.isFilled(this.eventForm.codeErreur)) {
+      this.eventForm.codeErreur = this.generateLocalIdentifier('ERR');
+    }
+  }
+
+  private generateLocalIdentifier(prefix: string): string {
+    const date = new Date();
+    const datePart = [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0')
+    ].join('');
+    const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `${prefix}-${datePart}-${randomPart}`;
+  }
+
   applyLogSearch(): void {
     this.logSearch = this.logSearch.trim();
   }
@@ -1676,27 +1662,16 @@ export class DashboardComponent implements OnInit {
 
     recognition.onresult = (event: any) => {
       const alternatives = Array.from(event.results?.[0] || []) as any[];
-      const rawText = (alternatives
+      const text = (alternatives
         .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))[0]?.transcript || '').trim();
-      const text = this.cleanVoiceSearchText(rawText);
-
-      if (target === 'events') {
-        this.eventStateFilter = 'ALL';
-        this.eventQualificationFilter = 'ALL';
-        this.eventRssiFilter = 'ALL';
-        this.eventSearch = text;
-      }
-      if (target === 'incidents') {
-        this.incidentStateFilter = 'ALL';
-        this.incidentSearch = text;
-      }
+      if (target === 'events') this.eventSearch = text;
+      if (target === 'incidents') this.incidentSearch = text;
       if (target === 'logs') this.logSearch = text;
-      if (target === 'assistant') this.assistantQuestion = rawText;
-
+      if (target === 'assistant') this.assistantQuestion = text;
       this.activeVoiceSearch.set(null);
       this.activeRecognition = null;
-      this.successMsg.set(rawText ? `Recherche vocale : « ${rawText} »` : 'Aucun mot reconnu.');
-      queueMicrotask(() => this.cdr.detectChanges());
+      this.successMsg.set(text ? `Recherche vocale : « ${text} »` : 'Aucun mot reconnu.');
+      this.cdr.detectChanges();
     };
     recognition.onerror = (event: any) => {
       this.activeVoiceSearch.set(null);
@@ -1722,25 +1697,6 @@ export class DashboardComponent implements OnInit {
     return 'fr-FR';
   }
 
-  private cleanVoiceSearchText(value: string): string {
-    const commandWords = new Set([
-      'cherche', 'chercher', 'recherche', 'rechercher', 'trouve', 'trouver', 'affiche', 'afficher',
-      'montre', 'montrer', 'filtre', 'filtrer', 'search', 'find', 'show', 'display', 'filter',
-      'moi', 'me', 'pour', 'les', 'des', 'dans', 'le', 'la', 'un', 'une', 'please', 'for'
-    ]);
-    const normalized = String(value || '')
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-zA-Z0-9À-ÿ_-]+/g, ' ')
-      .trim();
-    const cleaned = normalized
-      .split(/\s+/)
-      .filter(token => token && !commandWords.has(token.toLowerCase()))
-      .join(' ')
-      .trim();
-    return cleaned || value.trim();
-  }
-
   logout(): void {
     this.apiService.logout();
     this.router.navigate(['/login']);
@@ -1749,67 +1705,35 @@ export class DashboardComponent implements OnInit {
   // --- AI Smart Fill (context-aware) ---
   magicFill(targetField?: string, formContext: 'event' | 'incident' = 'event'): void {
     const rawTitle = this.eventForm.libelleErreur || this.selectedEvent()?.libelleErreur || '';
+    const title = rawTitle.toLowerCase();
 
-    if (targetField) {
-      const targetObject = formContext === 'event' ? this.eventForm : this.incidentForm;
-      const currentValue = String((targetObject as any)[targetField] || '').trim();
-      const selected = this.selectedEvent();
-      const seed = currentValue
-        || [rawTitle, this.eventForm.descriptionDetaillee, selected?.descriptionDetaillee]
-          .filter(Boolean)
-          .join(' — ')
-          .trim();
-
+    if (targetField === 'descriptionDetaillee' && formContext === 'event') {
+      const seed = (this.eventForm.descriptionDetaillee || rawTitle).trim();
       if (!seed) {
-        this.errorMsg.set('Saisissez quelques mots dans le champ ou dans le titre avant de lancer la génération IA.');
+        this.errorMsg.set('Saisissez d’abord quelques mots dans la description ou dans le titre.');
         return;
       }
-
-      this.aiGeneratingField.set(`${formContext}:${targetField}`);
+      this.eventForm.descriptionDetaillee = this.expandEventDescription(seed);
+      this.successMsg.set('La description a été développée en un paragraphe clair.');
       this.errorMsg.set('');
-      this.apiService.generateLocalAiText({
-        purpose: formContext === 'event'
-          ? 'développer une description professionnelle d’événement de sécurité en 2 ou 3 phrases'
-          : `rédiger le champ ${targetField} du plan d’incident en 2 ou 3 phrases`,
-        field: targetField,
-        seed,
-        event: {
-          id: selected?.id || this.eventForm.id,
-          title: rawTitle,
-          description: this.eventForm.descriptionDetaillee || selected?.descriptionDetaillee || '',
-          ticket: this.eventForm.idTicket || selected?.idTicket || '',
-          errorCode: this.eventForm.codeErreur || selected?.codeErreur || '',
-          service: this.eventForm.serviceOsAppli || selected?.serviceOsAppli || '',
-          equipment: this.eventForm.equipementHardware || selected?.equipementHardware || '',
-          confidentiality: this.eventForm.impactConfidentialite || selected?.impactConfidentialite || '',
-          integrity: this.eventForm.impactIntegrite || selected?.impactIntegrite || '',
-          availability: this.eventForm.impactDisponibilite || selected?.impactDisponibilite || ''
-        },
-        incident: this.incidentForm as unknown as Record<string, unknown>
-      }).subscribe({
-        next: result => {
-          (targetObject as any)[targetField] = result.text;
-          this.aiGeneratingField.set(null);
-          this.successMsg.set(result.modelAvailable === false
-            ? 'Texte préparé en mode de secours. Lancez SETUP-LOCAL-AI.cmd pour utiliser le vrai modèle local.'
-            : 'Texte généré par le modèle IA local. Vérifiez-le avant l’enregistrement.');
-          this.cdr.detectChanges();
-        },
-        error: err => {
-          this.aiGeneratingField.set(null);
-          this.errorMsg.set(err?.error?.message || 'La génération IA locale n’est pas disponible.');
-        }
-      });
       return;
     }
 
-    const title = rawTitle.toLowerCase();
-    if (!title) {
-      this.errorMsg.set("Veuillez d'abord saisir un titre de problème.");
+    if (!title && !targetField) {
+      this.errorMsg.set('Veuillez d\'abord saisir un titre de problème.');
       return;
     }
+
     const suggestions = this.buildAiSuggestions(title);
+
+    if (targetField) {
+      this.applyFieldSuggestion(formContext, targetField, suggestions);
+      this.successMsg.set('Suggestion ajoutée pour ce champ.');
+      return;
+    }
+
     if (formContext === 'event' || this.showEventForm()) {
+      this.eventForm.descriptionDetaillee = this.eventForm.descriptionDetaillee || suggestions.descriptionDetaillee;
       this.eventForm.causesPossibles = this.eventForm.causesPossibles || suggestions.causesPossibles;
       this.eventForm.appreciation = this.eventForm.appreciation || suggestions.appreciation;
       this.eventForm.evaluation = this.eventForm.evaluation || suggestions.evaluation;
@@ -1819,7 +1743,37 @@ export class DashboardComponent implements OnInit {
       this.eventForm.impactNiveau = this.eventForm.impactNiveau || suggestions.impactNiveau;
       this.applySmartDateFromTitle(title);
     }
-    this.successMsg.set('Suggestions ajoutées dans les champs vides.');
+
+    if (this.showIncidentForm()) {
+      this.incidentForm.preconisation = this.incidentForm.preconisation || suggestions.preconisation;
+      this.incidentForm.traitementAction = this.incidentForm.traitementAction || suggestions.traitementAction;
+      this.incidentForm.actionCorrective = this.incidentForm.actionCorrective || suggestions.actionCorrective;
+      this.incidentForm.impactContinuiteDescription = this.incidentForm.impactContinuiteDescription || suggestions.impactContinuiteDescription;
+      this.incidentForm.commentaireEfficacite = this.incidentForm.commentaireEfficacite || suggestions.commentaireEfficacite;
+      this.incidentForm.changementDeclencheDescription = this.incidentForm.changementDeclencheDescription || suggestions.changementDeclencheDescription;
+    }
+
+    this.successMsg.set('Suggestions IA ajoutées dans les champs vides.');
+  }
+
+  private expandEventDescription(seed: string): string {
+    const cleaned = seed.replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
+    const lower = this.normalizeSearch(cleaned);
+    let context = 'Cette anomalie a été détectée sur le système concerné et nécessite une vérification technique afin d’identifier son origine exacte.';
+    let consequence = 'Elle peut perturber le service, affecter les utilisateurs et demander une intervention rapide des équipes responsables.';
+
+    if (/auth|connexion|login|mot de passe|acces/.test(lower)) {
+      context = 'Des échecs d’authentification ou des accès inhabituels ont été observés sur le service concerné, ce qui peut indiquer un compte bloqué, une erreur de configuration ou une tentative d’accès non autorisée.';
+      consequence = 'Une analyse des journaux de connexion, des comptes concernés et des adresses sources est nécessaire pour confirmer l’origine et limiter le risque.';
+    } else if (/reseau|vpn|connexion|indisponibilite|panne/.test(lower)) {
+      context = 'Une interruption ou une dégradation de la connectivité a été constatée sur le périmètre concerné, avec un impact possible sur plusieurs utilisateurs ou applications.';
+      consequence = 'Il faut contrôler les équipements réseau, les journaux de supervision et les derniers changements afin de rétablir le service et d’éviter une récidive.';
+    } else if (/malware|virus|phishing|ransom/.test(lower)) {
+      context = 'Une activité potentiellement malveillante a été signalée et pourrait compromettre un poste, un compte ou des données du système d’information.';
+      consequence = 'L’équipement doit être isolé si nécessaire, puis les traces, fichiers et comptes associés doivent être analysés avant toute remise en service.';
+    }
+
+    return `${cleaned}. ${context} ${consequence}`;
   }
 
   private buildAiSuggestions(title: string) {

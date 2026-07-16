@@ -176,6 +176,20 @@ export class ApiService {
     );
   }
 
+  generateLocalAiText(payload: {
+    purpose: string;
+    field: string;
+    seed: string;
+    event?: Record<string, unknown>;
+    incident?: Record<string, unknown>;
+  }): Observable<{ text: string; engine?: string; modelAvailable?: boolean; diagnostic?: string }> {
+    return this.http.post<{ text: string; engine?: string; modelAvailable?: boolean; diagnostic?: string }>(
+      `${this.baseUrl}/rssi-assistant/generate-text`,
+      payload,
+      { headers: this.getHeaders() }
+    );
+  }
+
   // --- Logs ---
   getLogs(): Observable<any[]> {
     return this.http.get<any[]>(`${this.baseUrl}/logs`, { headers: this.getHeaders() });
