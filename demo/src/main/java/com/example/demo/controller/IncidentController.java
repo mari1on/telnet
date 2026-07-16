@@ -2,18 +2,21 @@ package com.example.demo.controller;
 
 import com.example.demo.entity.Incident;
 import com.example.demo.service.IncidentService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/incidents")
-@RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class IncidentController {
 
     private final IncidentService incidentService;
+
+    public IncidentController(IncidentService incidentService) {
+        this.incidentService = incidentService;
+    }
 
     @GetMapping
     public List<Incident> getAllIncidents() {
@@ -28,20 +31,38 @@ public class IncidentController {
     }
 
     @PostMapping
-    public ResponseEntity<Incident> createIncident(
+    public ResponseEntity<?> createIncident(
             @RequestBody Incident incident,
             @RequestHeader(value = "X-User-Username", required = false) String username) {
-        return ResponseEntity.ok(incidentService.createIncident(incident, username));
+        try {
+            return ResponseEntity.ok(incidentService.createIncident(incident, username));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message", "Impossible d’enregistrer l’incident. Vérifiez les champs du plan et réessayez.",
+                    "detail", rootMessage(ex)
+            ));
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Incident> updateIncident(
+    public ResponseEntity<?> updateIncident(
             @PathVariable Long id,
             @RequestBody Incident details,
             @RequestHeader(value = "X-User-Username", required = false) String username) {
-        return incidentService.updateIncident(id, details, username)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            return incidentService.updateIncident(id, details, username)
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message", "Impossible de mettre à jour l’incident. Vérifiez les champs du plan et réessayez.",
+                    "detail", rootMessage(ex)
+            ));
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -53,4 +74,13 @@ public class IncidentController {
         }
         return ResponseEntity.notFound().build();
     }
+    private String rootMessage(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
+    }
 }
+

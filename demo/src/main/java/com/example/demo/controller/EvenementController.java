@@ -17,6 +17,17 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class EvenementController {
 
+    public record QualificationRequest(
+            String typeActif,
+            String actifAffecte,
+            String impactConfidentialite,
+            String impactIntegrite,
+            String impactDisponibilite,
+            String commentaireConfidentialite,
+            String commentaireIntegrite,
+            String commentaireDisponibilite
+    ) {}
+
     private final EvenementService evenementService;
 
     private String getUsername() {
@@ -53,15 +64,43 @@ public class EvenementController {
     }
 
     @PostMapping
-    public ResponseEntity<Evenement> createEvenement(@RequestBody Evenement evenement) {
-        return ResponseEntity.ok(evenementService.createEvenement(evenement, getUsername()));
+    public ResponseEntity<?> createEvenement(@RequestBody Evenement evenement) {
+        try {
+            return ResponseEntity.ok(evenementService.createEvenement(evenement, getUsername()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Evenement> updateEvenement(@PathVariable Long id, @RequestBody Evenement details) {
-        return evenementService.updateEvenement(id, details, getUsername())
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> updateEvenement(@PathVariable Long id, @RequestBody Evenement details) {
+        try {
+            return evenementService.updateEvenement(id, details, getUsername())
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/qualification")
+    public ResponseEntity<?> qualifyEvenement(@PathVariable Long id, @RequestBody QualificationRequest request) {
+        try {
+            return evenementService.qualifyEvenement(
+                    id,
+                    request.typeActif(),
+                    request.actifAffecte(),
+                    request.impactConfidentialite(),
+                    request.impactIntegrite(),
+                    request.impactDisponibilite(),
+                    request.commentaireConfidentialite(),
+                    request.commentaireIntegrite(),
+                    request.commentaireDisponibilite(),
+                    getUsername()
+            ).<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @PostMapping("/{id}/notify-rssi")

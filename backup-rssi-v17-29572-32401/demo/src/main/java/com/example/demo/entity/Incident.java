@@ -30,7 +30,6 @@ public class Incident {
 
     // Mesures prises pour atténuer l'incident
     private String mesureActionNumero;
-    @Column(columnDefinition = "TEXT")
     private String mesureAction;
     private String mesureResponsable;
     private String mesureDelai;
@@ -42,7 +41,6 @@ public class Incident {
     private LocalTime mesureHeureCloture;
 
     // Action de traitement
-    @Column(columnDefinition = "TEXT")
     private String traitementAction;
     private LocalDate traitementDDT; // DDT
     private LocalTime traitementHDT; // HDT
@@ -56,7 +54,6 @@ public class Incident {
     // Préconisation / Action corrective
     @Column(columnDefinition = "TEXT")
     private String preconisation;
-    @Column(columnDefinition = "TEXT")
     private String actionCorrective;
     private String correctiveResponsable;
     private LocalDate correctiveDateDebut;
@@ -95,7 +92,6 @@ public class Incident {
 
     private Boolean risquesAMettreAJour;
 
-    @Column(columnDefinition = "TEXT")
     private String risquesMiseAJour;
 
     @Column(columnDefinition = "TEXT")

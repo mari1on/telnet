@@ -591,16 +591,16 @@
           </div>
 
           @if (assistantResult(); as result) {
-            @if (result.askToFillIncident || result.askToCreateEvent) {
+            @if (result.askToFillIncident) {
               <div class="assistant-fill-request assistant-fill-request-compact">
                 <div>
-                  <strong>{{ result.askToCreateEvent ? 'Préparer une nouvelle déclaration' : 'Préparer la qualification et la fiche d’incident' }}</strong>
-                  <p>{{ result.confirmationPrompt || (result.askToCreateEvent ? 'Voulez-vous que je prépare une nouvelle déclaration à partir de cette situation ?' : 'Voulez-vous que je propose les impacts CID puis que je remplisse progressivement la fiche d’incident ?') }}</p>
+                  <strong>Préparer la qualification et la fiche d’incident</strong>
+                  <p>{{ result.confirmationPrompt || 'Voulez-vous que je propose les impacts CID puis que je remplisse progressivement la fiche d’incident ?' }}</p>
                 </div>
                 <div class="assistant-proposal-actions">
                   <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">Non</button>
-                  <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()" [disabled]="assistantAutofillActive() || assistantEventAutofillActive()">
-                    {{ (assistantAutofillActive() || assistantEventAutofillActive()) ? 'Remplissage en cours…' : (result.askToCreateEvent ? 'Oui, préparer la déclaration' : 'Oui, préparer la fiche') }}
+                  <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()" [disabled]="assistantAutofillActive()">
+                    {{ assistantAutofillActive() ? 'Remplissage en cours…' : 'Oui, préparer la fiche' }}
                   </button>
                 </div>
               </div>

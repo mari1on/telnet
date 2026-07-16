@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assistant RSSI TELNET V17.
+"""Assistant RSSI TELNET V16.
 
 Le script reçoit à chaque question les événements et incidents actuels de MySQL.
 Il utilise un modèle conversationnel Ollama installé localement par INSTALLER.cmd,
@@ -53,11 +53,6 @@ SYNONYMS = {
     "website": "site", "platform": "site", "telnett": "telnet",
     "fire": "incendie", "smoke": "fumee", "alarm": "alarme", "blaze": "incendie",
     "hiii": "hi", "hii": "hi", "helloo": "hello", "helloooo": "hello", "cvvvv": "cv",
-    "ordinateur": "pc", "ordi": "pc", "poste": "pc", "laptop": "pc", "desktop": "pc",
-    "px": "pc", "machine": "pc", "ecran": "affichage", "screen": "affichage",
-    "lent": "lenteur", "lente": "lenteur", "slow": "lenteur", "freeze": "bloque",
-    "fige": "bloque", "plante": "bloque", "plantage": "bloque", "demarre": "demarrage",
-    "boot": "demarrage", "souris": "peripherique", "clavier": "peripherique",
 }
 
 STOP_WORDS = {
@@ -255,11 +250,11 @@ def scenario_kind(text: str) -> str:
     words = set(q.split())
     if {"incendie", "feu", "fumee", "alarme"} & words or "alarme incendie" in q:
         return "fire"
-    if ({"panne", "indisponibilite", "coupure", "bloque"} & words
+    if ({"panne", "indisponibilite", "coupure", "plantage", "timeout"} & words
             and {"serveur", "reseau", "base", "service", "application", "systeme"} & words):
         return "outage"
     if any(expr in q for expr in ("panne serveur", "serveur panne", "serveur indisponible",
-                                   "service indisponible", "reseau panne", "connexion panne")):
+                                   "service indisponible", "reseau panne", "connexion timeout")):
         return "outage"
     if "authentification" in words or "mot passe" in q or "compte bloque" in q or "acces suspect" in q:
         return "authentication"
@@ -267,8 +262,6 @@ def scenario_kind(text: str) -> str:
         return "malware"
     if {"fuite", "exfiltration", "confidentialite"} & words or "donnee exposee" in q:
         return "data"
-    if "pc" in words or {"affichage", "peripherique", "demarrage", "lenteur"} & words:
-        return "endpoint"
     if {"serveur", "base", "application", "reseau", "systeme"} & words:
         return "technical"
     return "generic"
@@ -312,14 +305,6 @@ def baseline_actions(event: dict[str, Any] | None, scenario: str = "generic") ->
             "Bloquer le canal de fuite et vérifier les obligations de notification.",
             "Corriger la cause et renforcer les contrôles d'accès.",
         ]
-    if kind == "endpoint":
-        return [
-            "Identifier le symptôme exact : lenteur, blocage, écran noir, erreur, réseau ou démarrage impossible.",
-            "Vérifier l’alimentation, les câbles, l’espace disque, la mémoire et les périphériques, puis redémarrer de façon contrôlée si cela est sûr.",
-            "Consulter les journaux système, les alertes antivirus et les changements ou mises à jour récents.",
-            "Isoler le poste du réseau en cas de comportement suspect, préserver les traces et lancer un diagnostic matériel et logiciel.",
-            "Tester le retour à la normale et documenter l’impact sur l’utilisateur et le service.",
-        ]
     if kind == "technical":
         return [
             "Identifier précisément le serveur, le service concerné et les utilisateurs impactés.",
@@ -343,7 +328,6 @@ def baseline_risks(event: dict[str, Any] | None, scenario: str) -> list[dict[str
         "malware": ["Propagation de la menace et indisponibilité des systèmes.", "Chiffrement, altération ou exfiltration de données."],
         "data": ["Divulgation de données sensibles.", "Impact réglementaire, contractuel et réputationnel."],
         "technical": ["Dégradation ou indisponibilité du service hébergé.", "Altération de traitements ou perte de données si le serveur est instable."],
-        "endpoint": ["Indisponibilité du poste et interruption du travail de l’utilisateur.", "Perte ou altération de fichiers locaux et propagation possible si l’origine est malveillante."],
         "generic": ["Dégradation du service et impact sur les utilisateurs.", "Risque d'aggravation si la cause n'est pas contenue rapidement."],
     }[kind]
     return [{"reference": "", "description": item} for item in descriptions]
@@ -411,9 +395,6 @@ def qualification_suggestion(event: dict[str, Any] | None, scenario: str) -> dic
         values = ["Critique", "Critique", "Majeur"]
     elif scenario == "technical":
         values = ["Mineur", "Majeur", "Critique"]
-    elif scenario == "endpoint":
-        # Un problème de poste n'est pas automatiquement critique sans preuve d'un arrêt métier total.
-        values = ["Mineur", "Majeur", "Majeur"]
     elif scenario in {"malware", "data"}:
         values = ["Critique", "Critique", "Majeur"]
     else:
@@ -450,11 +431,6 @@ def qualification_suggestion(event: dict[str, Any] | None, scenario: str) -> dic
             "Des traitements ou données en cours peuvent être affectés.",
             "Le service hébergé peut devenir indisponible; niveau proposé à confirmer.",
         ],
-        "endpoint": [
-            "Aucun indice direct de divulgation; vérifier les journaux et l’antivirus.",
-            "Des fichiers ou traitements locaux peuvent être altérés si le poste est instable.",
-            "Le poste peut être partiellement ou totalement indisponible; confirmer l’impact métier.",
-        ],
         "generic": [
             "Niveau suggéré à confirmer par le RSSI.",
             "Niveau suggéré à confirmer par le RSSI.",
@@ -472,78 +448,12 @@ def qualification_suggestion(event: dict[str, Any] | None, scenario: str) -> dic
     }
 
 
-def build_event_draft(question: str, scenario: str) -> dict[str, Any]:
-    """Prepare a complete event declaration for a situation not yet stored in TELNET."""
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    cleaned = re.sub(r"\s+", " ", str(question or "").strip()).strip(" .;,")
-    definitions = {
-        "endpoint": {
-            "title": "Anomalie sur poste utilisateur",
-            "description": f"Un problème a été signalé sur un poste utilisateur : {cleaned or 'symptôme à préciser'}. Le poste doit être diagnostiqué afin d’identifier s’il s’agit d’une panne matérielle, d’une erreur logicielle, d’un problème de ressources, de réseau ou d’une anomalie de sécurité.",
-            "nature": "Degradation", "service": "Poste utilisateur", "equipment": "PC utilisateur",
-            "causes": "Panne matérielle, saturation des ressources, mise à jour défectueuse, erreur de configuration, périphérique défaillant ou logiciel malveillant.",
-        },
-        "outage": {
-            "title": "Panne ou indisponibilité de service",
-            "description": f"Une panne ou une forte dégradation a été signalée : {cleaned or 'service indisponible'}. Le périmètre, les utilisateurs affectés, la supervision et les changements récents doivent être vérifiés avant le rétablissement.",
-            "nature": "Indisponibilite", "service": "Service à confirmer", "equipment": "Serveur ou équipement à confirmer",
-            "causes": "Saturation, panne matérielle, erreur de configuration, problème réseau, mise à jour défectueuse ou dépendance externe indisponible.",
-        },
-        "fire": {
-            "title": "Alarme ou départ d’incendie",
-            "description": f"Une alarme ou un départ d’incendie a été signalé : {cleaned or 'zone à préciser'}. La sécurité des personnes est prioritaire; la zone, les équipements et l’interruption de service doivent ensuite être documentés.",
-            "nature": "Alerte securite", "service": "Site physique à confirmer", "equipment": "Équipements de la zone concernée",
-            "causes": "Défaut électrique, surchauffe, équipement défaillant, incident environnemental ou fausse alarme à confirmer.",
-        },
-        "authentication": {
-            "title": "Anomalie d’authentification",
-            "description": f"Une anomalie d’authentification a été signalée : {cleaned or 'accès à préciser'}. Les comptes, adresses sources, horaires et journaux d’accès doivent être analysés.",
-            "nature": "Alerte securite", "service": "Service d’authentification", "equipment": "Compte ou système d’identité",
-            "causes": "Compte bloqué, mot de passe expiré, mauvaise configuration, indisponibilité du service d’identité ou tentative d’accès non autorisée.",
-        },
-        "malware": {
-            "title": "Suspicion de logiciel malveillant",
-            "description": f"Une activité potentiellement malveillante a été signalée : {cleaned or 'symptôme à préciser'}. Le poste ou serveur doit être isolé si nécessaire et les traces doivent être préservées.",
-            "nature": "Alerte securite", "service": "Périmètre à confirmer", "equipment": "Poste ou serveur concerné",
-            "causes": "Pièce jointe malveillante, téléchargement compromis, vulnérabilité non corrigée, identifiants compromis ou support amovible.",
-        },
-    }
-    item = definitions.get(scenario, {
-        "title": "Événement technique à analyser",
-        "description": f"Une situation a été signalée : {cleaned or 'détails à confirmer'}. Le périmètre, les actifs concernés, les symptômes et les changements récents doivent être vérifiés.",
-        "nature": "Autre", "service": "À confirmer", "equipment": "À confirmer",
-        "causes": "Erreur de configuration, panne technique, changement récent, dépendance externe ou anomalie de sécurité à confirmer.",
-    })
-    return {
-        "libelleErreur": item["title"],
-        "descriptionDetaillee": item["description"],
-        "detecteParSource": "AUTRE",
-        "idTicket": f"AI-{stamp}",
-        "commentaireSource": "Déclaration préparée par l’assistant RSSI à partir de la description utilisateur.",
-        "natureEvenement": item["nature"],
-        "serviceOsAppli": item["service"],
-        "equipementHardware": item["equipment"],
-        "codeErreur": f"AI-{scenario.upper()}-{stamp}",
-        "causesPossibles": item["causes"],
-        "etat": "Ouvert",
-        "appreciation": "À confirmer par le RSSI",
-        "evaluation": "Analyse initiale assistée",
-        "impactNiveau": "Majeur",
-        "impactMineur": False,
-        "impactCommentaire": "Niveau initial à confirmer lors de la qualification CID.",
-        "typeActif": "Poste de travail" if scenario == "endpoint" else "Système d’information",
-        "actifAffecte": item["equipment"],
-    }
-
-
 def build_draft(event: dict[str, Any] | None, incident: dict[str, Any] | None,
                 actions: list[str], model_draft: dict[str, Any] | None = None,
                 scenario: str = "generic") -> dict[str, Any]:
-    draft = dict(model_draft or {})
     if not event:
-        # A draft can still be prepared for a new situation; it will be attached after the event is created.
-        event = {}
-
+        return {}
+    draft = dict(model_draft or {})
     current = incident or {}
     classification, critical, complete = cid_classification(event)
     if not complete:
@@ -764,20 +674,6 @@ def fallback_answer(question: str, event: dict[str, Any] | None, incident: dict[
                 answer = "Je peux préparer la qualification et la fiche d’incident d’une panne serveur. Je vais proposer une disponibilité Critique, vérifier l’intégrité des traitements interrompus, puis préremplir les mesures, le traitement, les risques et le suivi. Pour appliquer ce remplissage à la base, je dois rattacher la proposition à la déclaration serveur la plus proche dans l’historique."
             else:
                 answer = "Une panne serveur signifie que le service est indisponible ou fortement dégradé. Les causes fréquentes sont une saturation des ressources, une panne matérielle, une erreur de configuration, un problème réseau, une mise à jour défectueuse ou une dépendance externe indisponible. Vérifiez la supervision et les journaux, identifiez les utilisateurs touchés, contrôlez les changements récents, activez la redondance si elle existe, puis restaurez progressivement le service. Le risque principal concerne la disponibilité; l’intégrité doit aussi être vérifiée si des traitements ont été interrompus."
-        elif scenario == "endpoint":
-            actions = baseline_actions(None, scenario)
-            if intent == "classification":
-                answer = "Un problème sur un PC est d’abord un événement à déclarer. Sans preuve d’un arrêt métier total, je propose provisoirement Confidentialité Mineur, Intégrité Majeur et Disponibilité Majeur. Il devient un incident seulement si le RSSI confirme au moins un impact Critique, par exemple un poste indispensable totalement bloqué ou une suspicion de compromission grave."
-            elif intent == "actions":
-                answer = "Pour ce problème sur le PC : " + " ".join(f"{i+1}) {a}" for i, a in enumerate(actions))
-            elif intent == "causes":
-                answer = "Les causes probables sont une saturation de mémoire ou de disque, une mise à jour défectueuse, un pilote ou périphérique en erreur, une panne matérielle, une mauvaise configuration, un problème réseau ou un logiciel malveillant. Vérifiez les journaux Windows, l’espace disque, la mémoire, les mises à jour et l’antivirus."
-            elif intent == "risks":
-                answer = "Les risques principaux sont l’indisponibilité du poste, la perte de productivité, l’altération de fichiers locaux et, si le comportement est suspect, une propagation ou une compromission. La gravité dépend du rôle du poste et de l’impact métier réel."
-            elif intent == "fill":
-                answer = "Je peux préparer une nouvelle déclaration à partir de votre description, puis proposer les trois impacts CID. Après votre validation de la déclaration, la fiche d’incident s’ouvrira uniquement si au moins un impact est confirmé Critique."
-            else:
-                answer = "Un problème sur un PC peut venir d’un manque d’espace disque ou de mémoire, d’une mise à jour ou d’un pilote défectueux, d’un périphérique, d’un problème réseau, d’une panne matérielle ou d’un logiciel malveillant. Commencez par noter le symptôme exact, vérifier les journaux système, l’espace disque, la mémoire et l’antivirus, puis redémarrer de façon contrôlée si cela est sûr. Si le poste est totalement bloqué ou critique pour l’activité, évaluez la disponibilité comme potentiellement Critique."
         elif scenario == "technical":
             if intent == "classification":
                 answer = "Un problème sur un serveur est d’abord un événement à analyser. Il devient un incident si l’un des trois impacts CID est Critique. Vérifiez surtout la disponibilité du service, puis l’intégrité des traitements et la confidentialité des données avant de confirmer."
@@ -793,7 +689,7 @@ def fallback_answer(question: str, event: dict[str, Any] | None, incident: dict[
             answer = "Limitez immédiatement l’accès aux données, préservez les journaux et identifiez les informations et personnes concernées. Bloquez le canal de fuite, vérifiez les obligations de notification, corrigez la cause et renforcez les contrôles d’accès."
         else:
             if intent == "fill":
-                answer = "Je peux préparer une nouvelle déclaration à partir de vos mots, puis proposer la qualification CID. Après votre validation de la déclaration, je remplirai la fiche d’incident si au moins un impact est confirmé Critique."
+                answer = "Je peux préremplir une fiche uniquement lorsqu’une déclaration enregistrée peut être identifiée. Décrivez le dernier événement ou dites « dernier événement », puis je proposerai la qualification et le remplissage sans vous demander son ID."
             elif intent == "actions":
                 answer = "Pour agir sans inventer de détails : 1) confirmez ce qui s’est passé et le périmètre touché; 2) conservez les preuves et appliquez un confinement réversible; 3) vérifiez les changements récents et la supervision; 4) rétablissez le service de façon contrôlée; 5) documentez les impacts CID et les actions."
             elif intent == "risks":
@@ -807,19 +703,13 @@ def fallback_answer(question: str, event: dict[str, Any] | None, incident: dict[
         matches = find_similar(events, event)
     if intent == "actions" and actions and "1)" not in answer:
         answer = answer.rstrip() + " " + " ".join(f"{index + 1}) {action}" for index, action in enumerate(actions))
-    ask_to_create = bool(not event and scenario != "generic" and intent in {"fill", "actions", "analysis", "classification", "risks", "explain", "causes"})
     if ask and intent == "fill":
         answer = answer.rstrip() + " Utilisez le bouton « Oui, préparer la fiche » pour voir le remplissage progressif à l’écran; aucune donnée ne sera enregistrée sans validation finale."
-    elif ask_to_create:
-        answer = answer.rstrip() + " Je peux aussi préparer une nouvelle déclaration à partir de cette situation; vous la vérifierez avant l’enregistrement."
     return {
         "answer": answer,
         "selectedEventId": event.get("id") if event else None,
-        "confirmationPrompt": ("Voulez-vous que je remplisse progressivement la qualification et la fiche d’incident avec cette proposition ?" if ask else
-                               "Voulez-vous que je prépare une nouvelle déclaration à partir de cette situation ?" if ask_to_create else ""),
+        "confirmationPrompt": "Voulez-vous que je remplisse progressivement la qualification et la fiche d’incident avec cette proposition ?" if ask else "",
         "askToFillIncident": ask,
-        "askToCreateEvent": ask_to_create,
-        "eventDraft": build_event_draft(last_substantive_user_message(history) or question, scenario) if ask_to_create else {},
         "similarFound": bool(matches),
         "matches": matches,
         "actions": actions,
@@ -855,7 +745,6 @@ def assistant(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "answer": answer,
             "selectedEventId": None, "confirmationPrompt": "", "askToFillIncident": False,
-            "askToCreateEvent": False, "eventDraft": {},
             "similarFound": False, "matches": [], "actions": [], "incidentDraft": {},
             "qualificationDraft": {}, "source": "Assistant TELNET", "engine": "direct-conversation",
         }
@@ -877,8 +766,7 @@ def assistant(payload: dict[str, Any]) -> dict[str, Any]:
 Tu es un véritable chatbot RSSI conversationnel de TELNET. Réponds toujours en français naturel et directement à la dernière question.
 Réponds correctement aux salutations, à la conversation courante et aux questions générales, sans ramener systématiquement la discussion vers un incident. Comprends une description libre, même sans titre, ID, ticket ou code erreur.
 L'historique contient des messages utilisateur et assistant, mais le sujet technique doit être déduit en priorité des derniers messages UTILISATEUR. Utilise-le pour les questions de suivi telles que « que dois-je faire alors ? ». Ne répète jamais la réponse précédente. Une nouvelle situation comme « incendie » ou « panne serveur » remplace immédiatement le sujet précédent.
-Si la question est imprécise, donne quand même une analyse prudente, des causes probables, des risques et des étapes utiles au lieu de réclamer un identifiant.
-Quand aucune déclaration historique ne correspond, tu peux proposer une nouvelle déclaration avec askToCreateEvent=true et un eventDraft complet. Ne force jamais une qualification INCIDENT sans élément justifiant au moins un impact Critique.
+Si la question est imprécise, donne quand même une analyse prudente, des risques et des étapes utiles au lieu de réclamer un identifiant.
 Mets les actions utiles directement dans answer sous forme de phrases ou d'une courte liste textuelle; l'interface ne montre pas une carte d'actions séparée. Utilise les données live et les cas
 historiques, sans inventer de faits. Explique clairement ce qui est certain, probable
 ou à confirmer. Les trois impacts CID sont obligatoires et au moins un Critique donne
@@ -901,13 +789,7 @@ Retourne uniquement un JSON valide:
   "answer": "réponse adaptée à la question actuelle",
   "actions": ["actions uniquement lorsqu'elles sont utiles"],
   "askToFillIncident": true ou false,
-  "askToCreateEvent": true ou false,
   "confirmationPrompt": "question de confirmation ou chaîne vide",
-  "eventDraft": {{
-    "libelleErreur": "", "descriptionDetaillee": "", "detecteParSource": "AUTRE",
-    "idTicket": "", "natureEvenement": "", "serviceOsAppli": "", "equipementHardware": "",
-    "codeErreur": "", "causesPossibles": "", "etat": "Ouvert", "typeActif": "", "actifAffecte": ""
-  }},
   "qualificationDraft": {{
     "impactConfidentialite": "Mineur|Majeur|Critique",
     "impactIntegrite": "Mineur|Majeur|Critique",
@@ -942,8 +824,7 @@ Retourne uniquement un JSON valide:
         explicit_fill = wants_form_fill(question)
         relevant_intent = intent in {"fill", "actions", "analysis", "classification", "risks", "explain", "causes"}
         ask = bool(event and suggested_incident and (explicit_fill or (relevant_intent and model.get("askToFillIncident", True))))
-        ask_to_create = bool(not event and scenario != "generic" and (explicit_fill or (relevant_intent and model.get("askToCreateEvent", True))))
-        if (ask or ask_to_create) and not actions:
+        if ask and not actions:
             actions = baseline_actions(event, scenario)
         if intent == "actions" and actions and not any(token in answer for token in ("1)", "1.", "premièrement")):
             answer = answer.rstrip() + "\n\n" + "\n".join(f"{index + 1}. {action}" for index, action in enumerate(actions))
@@ -953,12 +834,8 @@ Retourne uniquement un JSON valide:
         return {
             "answer": answer,
             "selectedEventId": event.get("id") if event else None,
-            "confirmationPrompt": str(model.get("confirmationPrompt") or (
-                "Voulez-vous que je remplisse maintenant la qualification puis toute la fiche d’incident, champ par champ, sous votre contrôle ?" if ask else
-                "Voulez-vous que je prépare une nouvelle déclaration à partir de cette situation ?" if ask_to_create else "")),
+            "confirmationPrompt": str(model.get("confirmationPrompt") or ("Voulez-vous que je remplisse maintenant la qualification puis toute la fiche d’incident, champ par champ, sous votre contrôle ?" if ask else "")),
             "askToFillIncident": ask,
-            "askToCreateEvent": ask_to_create,
-            "eventDraft": (model.get("eventDraft") if isinstance(model.get("eventDraft"), dict) and model.get("eventDraft") else build_event_draft(context_query, scenario)) if ask_to_create else {},
             "similarFound": bool(matches), "matches": matches, "actions": actions,
             "incidentDraft": build_draft(event, incident, actions, model_draft, scenario),
             "qualificationDraft": suggested_qualification,

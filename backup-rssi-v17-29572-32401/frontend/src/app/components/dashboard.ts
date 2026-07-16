@@ -127,27 +127,6 @@ interface AssistantIncidentDraft {
 }
 
 
-interface AssistantEventDraft {
-  libelleErreur?: string;
-  descriptionDetaillee?: string;
-  detecteParSource?: string;
-  idTicket?: string;
-  commentaireSource?: string;
-  natureEvenement?: string;
-  serviceOsAppli?: string;
-  equipementHardware?: string;
-  codeErreur?: string;
-  causesPossibles?: string;
-  etat?: string;
-  appreciation?: string;
-  evaluation?: string;
-  impactNiveau?: string;
-  impactMineur?: boolean;
-  impactCommentaire?: string;
-  typeActif?: string;
-  actifAffecte?: string;
-}
-
 interface AssistantQualificationDraft {
   impactConfidentialite: 'Mineur' | 'Majeur' | 'Critique';
   impactIntegrite: 'Mineur' | 'Majeur' | 'Critique';
@@ -162,9 +141,7 @@ interface AssistantResponse {
   answer: string;
   confirmationPrompt: string;
   askToFillIncident?: boolean;
-  askToCreateEvent?: boolean;
   selectedEventId?: number | null;
-  eventDraft?: AssistantEventDraft;
   incidentDraft?: AssistantIncidentDraft;
   qualificationDraft?: AssistantQualificationDraft;
   similarFound: boolean;
@@ -211,8 +188,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   assistantInferredEventId: number | null = null;
   aiGeneratingField = signal<string | null>(null);
   assistantAutofillActive = signal(false);
-  assistantEventAutofillActive = signal(false);
-  assistantPendingNewEventResult = signal<AssistantResponse | null>(null);
   assistantQuestion = '';
   assistantLoading = signal(false);
   assistantResult = signal<AssistantResponse | null>(null);
@@ -947,41 +922,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private sanitizeIncidentPayload(incident: Incident): Incident {
-    const payload: Incident = {
-      ...incident,
-      typesIncident: (Array.isArray(incident.typesIncident) ? incident.typesIncident : [incident.typesIncident as any])
-        .map(value => String(value || '').trim())
-        .filter(Boolean),
-      risques: (Array.isArray(incident.risques) ? incident.risques : [])
-        .map(risk => ({
-          ...(risk.id ? { id: risk.id } : {}),
-          reference: (risk.reference || '').trim(),
-          description: (risk.description || '').trim()
-        }))
-        .filter(risk => Boolean(risk.description)),
-      evenement: { id: Number(incident.evenement?.id || 0) },
-      hasRisquesAssocies: Boolean(incident.hasRisquesAssocies),
-      impactContinuite: Boolean(incident.impactContinuite),
-      capitalisation: Boolean(incident.capitalisation),
-      changementDeclenche: Boolean(incident.changementDeclenche),
-      miseAJourPcaNecessaire: Boolean(incident.miseAJourPcaNecessaire),
-      risquesAMettreAJour: Boolean(incident.risquesAMettreAJour)
-    };
+    const payload = { ...incident };
     const dateFields: (keyof Incident)[] = [
       'mesureDDT', 'mesureDateCloture', 'mesureHeureCloture', 'traitementDDT', 'traitementDateCloture',
       'correctiveDateDebut', 'correctiveDateCloture', 'dateMesureEfficacite', 'suiviDate',
       'heureAttenuation', 'traitementHDT', 'traitementHeureCloture', 'heureTraitement'
     ];
     dateFields.forEach(field => {
-      if (payload[field] === '') (payload as any)[field] = null;
+      if (payload[field] === '') {
+        (payload as any)[field] = null;
+      }
     });
     return payload;
-  }
-
-  private extractApiErrorMessage(err: any, fallback: string): string {
-    const body = err?.error;
-    if (typeof body === 'string' && body.trim()) return body.trim();
-    return body?.message || body?.detail || body?.error || err?.message || fallback;
   }
 
   private prepareIncidentFormDefaults(): void {
@@ -1237,17 +1189,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   applyAssistantActions(): void {
     const result = this.assistantResult();
-    if (!result) return;
-
-    const eventId = result.selectedEventId ?? this.assistantInferredEventId;
-    if (!eventId && result.askToCreateEvent) {
-      this.prepareNewEventFromAssistant(result);
-      return;
-    }
-    if (!eventId) {
+    const eventId = result?.selectedEventId ?? this.assistantInferredEventId;
+    if (!result || !eventId) {
       this.assistantMessages.update(messages => [...messages, {
         role: 'assistant',
-        text: "Je peux préparer une nouvelle déclaration à partir de votre description. Décrivez le symptôme principal puis utilisez la proposition de création affichée sous la conversation."
+        text: "Je peux analyser cette situation immédiatement. Pour remplir une fiche réelle, créez d'abord la déclaration correspondante, puis dites-moi de préparer sa qualification et son plan."
       }]);
       return;
     }
@@ -1257,66 +1203,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.assistantMessages.update(messages => [...messages, { role: 'assistant', text: 'La déclaration associée n’est plus disponible. Rechargez les événements puis réessayez.' }]);
       return;
     }
-    this.beginAssistantQualification(event, result);
-  }
 
-  private prepareNewEventFromAssistant(result: AssistantResponse): void {
-    const draft = result.eventDraft || {};
-    const initial = this.initEventForm();
-    this.selectedEvent.set(null);
-    this.eventForm = { ...initial };
-    this.eventFormError.set('');
-    this.eventFormSuccess.set('L’assistant prépare une nouvelle déclaration. Vérifiez chaque proposition avant de l’enregistrer.');
-    this.assistantPendingNewEventResult.set(result);
-    this.assistantEventAutofillActive.set(true);
-    this.showQualifyForm.set(false);
-    this.showIncidentForm.set(false);
-    this.showEventForm.set(true);
-    this.cdr.detectChanges();
-
-    const steps: Array<[keyof Evenement, any]> = [
-      ['libelleErreur', draft.libelleErreur || 'Événement technique à analyser'],
-      ['descriptionDetaillee', draft.descriptionDetaillee || 'Situation décrite par le RSSI et à compléter après les premières vérifications.'],
-      ['detecteParSource', draft.detecteParSource || 'AUTRE'],
-      ['idTicket', draft.idTicket || this.generateAssistantTechnicalId('AI-TCK')],
-      ['commentaireSource', draft.commentaireSource || 'Déclaration préparée par l’assistant RSSI.'],
-      ['natureEvenement', draft.natureEvenement || 'Autre'],
-      ['serviceOsAppli', draft.serviceOsAppli || 'À confirmer'],
-      ['equipementHardware', draft.equipementHardware || 'À confirmer'],
-      ['codeErreur', draft.codeErreur || this.generateAssistantTechnicalId('AI-ERR')],
-      ['causesPossibles', draft.causesPossibles || 'Cause à confirmer par les journaux, les tests et les changements récents.'],
-      ['etat', draft.etat || 'Ouvert'],
-      ['appreciation', draft.appreciation || 'À confirmer par le RSSI'],
-      ['evaluation', draft.evaluation || 'Analyse initiale assistée'],
-      ['impactNiveau', draft.impactNiveau || 'Majeur'],
-      ['impactCommentaire', draft.impactCommentaire || 'Niveau initial à confirmer lors de la qualification CID.'],
-      ['typeActif', draft.typeActif || 'Système d’information'],
-      ['actifAffecte', draft.actifAffecte || draft.equipementHardware || 'À confirmer']
-    ];
-
-    steps.forEach(([field, value], index) => {
-      window.setTimeout(() => {
-        (this.eventForm as any)[field] = value;
-        this.moveAssistantCursorToField(String(field));
-        this.cdr.detectChanges();
-        if (index === steps.length - 1) {
-          this.assistantEventAutofillActive.set(false);
-          this.assistantCursorVisible.set(false);
-          this.eventFormSuccess.set('Déclaration préremplie. Vérifiez les informations puis cliquez sur Enregistrer; la qualification sera ensuite préparée automatiquement.');
-        } else {
-          this.assistantCursorVisible.set(true);
-        }
-      }, index * 210);
-    });
-  }
-
-  private generateAssistantTechnicalId(prefix: string): string {
-    const now = new Date();
-    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-    return `${prefix}-${stamp}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  }
-
-  private beginAssistantQualification(event: Evenement, result: AssistantResponse): void {
     const qualification = result.qualificationDraft || this.buildAssistantQualificationDraft(event);
     this.selectedEvent.set(event);
     this.eventForm = { ...event };
@@ -1339,19 +1226,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     steps.forEach(([field, value], index) => {
       window.setTimeout(() => {
         (this.eventForm as any)[field] = value;
-        this.moveAssistantCursorToField(String(field));
         this.onQualificationChange();
         this.cdr.detectChanges();
         if (index === steps.length - 1) {
-          if (this.hasCriticalImpact()) {
-            this.persistAssistantQualificationAndOpenPlan(event, result);
-          } else {
-            this.assistantAutofillActive.set(false);
-            this.assistantCursorVisible.set(false);
-            this.qualificationFormSuccess.set('Qualification proposée. Aucun impact Critique n’est actuellement suggéré; vérifiez les trois axes puis confirmez. La fiche d’incident s’ouvrira uniquement si au moins un axe est Critique.');
-          }
-        } else {
-          this.assistantCursorVisible.set(true);
+          this.persistAssistantQualificationAndOpenPlan(event, result);
         }
       }, index * 260);
     });
@@ -1512,11 +1390,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       suiviAuteur: username,
       suiviCommentaires: 'Fiche préremplie par l’assistant; validation humaine obligatoire.'
     };
-    const provided = new Map<keyof Incident, any>();
-    entries.forEach(([field, rawValue]) => {
-      const value = this.normalizeAssistantIncidentValue(field, rawValue);
-      if (value !== undefined && value !== null && value !== '') provided.set(field, value);
-    });
+    const provided = new Map<keyof Incident, any>(entries.filter(([, value]) => value !== undefined && value !== null && value !== ''));
     const order: (keyof Incident)[] = [
       'typesIncident', 'niveauImpact', 'dureeIndisponibilite', 'mesureActionNumero', 'mesureAction',
       'mesureResponsable', 'mesureDelai', 'mesureEtat', 'mesureDDT', 'heureAttenuation',
@@ -1529,32 +1403,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     ];
     return order.map(field => [field, provided.has(field) ? provided.get(field) : (defaults as any)[field]])
       .filter(([, value]) => value !== undefined && value !== null && value !== '') as Array<[keyof Incident, any]>;
-  }
-
-  private normalizeAssistantIncidentValue(field: keyof Incident, value: any): any {
-    if (field === 'typesIncident') {
-      const values = Array.isArray(value) ? value : String(value || '').split(/[,;|]/);
-      return values.map(item => String(item).trim()).filter(Boolean);
-    }
-    if (field === 'risques') {
-      const values = Array.isArray(value) ? value : [];
-      return values
-        .map((risk: any) => ({
-          reference: String(risk?.reference || '').trim(),
-          description: String(risk?.description || '').trim()
-        }))
-        .filter((risk: Risque) => Boolean(risk.description));
-    }
-    if (['hasRisquesAssocies', 'impactContinuite', 'capitalisation', 'changementDeclenche', 'miseAJourPcaNecessaire', 'risquesAMettreAJour'].includes(String(field))) {
-      if (typeof value === 'boolean') return value;
-      const normalized = String(value || '').trim().toLowerCase();
-      return ['true', 'oui', '1', 'yes'].includes(normalized);
-    }
-    if (field === 'niveauImpact') {
-      const normalized = String(value || '').toUpperCase().replace(/\s+/g, '_');
-      return ['NIVEAU_1', 'NIVEAU_2', 'NIVEAU_3', 'NIVEAU_4'].includes(normalized) ? normalized : 'NIVEAU_3';
-    }
-    return typeof value === 'string' ? value.trim() : value;
   }
 
   private moveAssistantCursorToField(field: string): void {
@@ -1570,8 +1418,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return;
     }
     this.assistantResult.set(null);
-    this.assistantPendingNewEventResult.set(null);
-    this.assistantEventAutofillActive.set(false);
     this.assistantMessages.update(messages => [
       ...messages,
       {
@@ -1587,8 +1433,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.assistantResult.set(null);
     this.assistantQuestion = '';
     this.assistantInferredEventId = null;
-    this.assistantPendingNewEventResult.set(null);
-    this.assistantEventAutofillActive.set(false);
     this.assistantMessages.set([
       {
         role: 'assistant',
@@ -1730,36 +1574,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     operation.subscribe({
       next: (saved) => {
-        const pendingAssistantResult = this.assistantPendingNewEventResult();
-        const createdEvent = { ...this.eventForm, ...(saved || {}) } as Evenement;
         this.eventFormSuccess.set(wasEditing
           ? 'Événement mis à jour avec succès.'
           : (this.apiService.isRssi()
               ? 'Événement enregistré avec succès.'
               : 'Événement enregistré avec succès. Cliquez sur « Envoyer au RSSI » pour notifier le RSSI.'));
         this.eventFormError.set('');
-
-        if (pendingAssistantResult && !wasEditing && createdEvent.id) {
-          const continuedResult: AssistantResponse = {
-            ...pendingAssistantResult,
-            selectedEventId: createdEvent.id,
-            askToCreateEvent: false,
-            askToFillIncident: true
-          };
-          this.assistantPendingNewEventResult.set(null);
-          this.assistantEventAutofillActive.set(false);
-          this.assistantResult.set(continuedResult);
-          this.assistantInferredEventId = createdEvent.id;
-          this.selectedEvent.set(createdEvent);
-          this.events.update(items => [createdEvent, ...items.filter(item => item.id !== createdEvent.id)]);
-          this.showEventForm.set(false);
-          this.eventForm = this.initEventForm();
-          this.loadEvents();
-          this.loadLogs();
-          this.isSubmitting.set(false);
-          window.setTimeout(() => this.beginAssistantQualification(createdEvent, continuedResult), 350);
-          return;
-        }
 
         if (this.apiService.isRssi()) {
           this.showEventForm.set(false);
@@ -2207,7 +2027,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         window.setTimeout(() => this.showIncidentForm.set(false), 1200);
       },
       error: (err) => {
-        this.incidentFormError.set(this.extractApiErrorMessage(err, 'Erreur lors de la sauvegarde de l’incident.'));
+        this.incidentFormError.set(err?.error?.message || 'Erreur lors de la sauvegarde de l’incident.');
         this.incidentFormSuccess.set('');
         this.isSubmitting.set(false);
       }
