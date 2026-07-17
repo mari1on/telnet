@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { tap, timeout } from 'rxjs/operators';
 
 export interface User {
   id?: number;
@@ -194,7 +194,7 @@ export class ApiService {
       `${this.baseUrl}/rssi-assistant/analyze`,
       payload,
       { headers: this.getHeaders() }
-    );
+    ).pipe(timeout(60000));
   }
 
   generateLocalAiText(payload: {

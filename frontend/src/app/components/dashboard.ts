@@ -228,6 +228,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   assistantConversations = signal<AssistantConversation[]>([]);
   activeAssistantConversationId = signal('');
   assistantHistoryOpen = signal(true);
+  assistantElapsedSeconds = signal(0);
+  assistantIncidentAwaitingConfirmation = signal(false);
+  assistantAutoSaveCountdown = signal(0);
   voiceSessionVisible = signal(false);
   voiceSessionTarget = signal<'events' | 'incidents' | 'logs' | 'assistant' | null>(null);
   voiceSessionDraft = signal('');
@@ -237,6 +240,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private assistantRequestSubscription: any = null;
   private assistantRequestSequence = 0;
   private assistantIncidentAutoSavePending = false;
+  private assistantElapsedTimer: number | null = null;
+  private assistantAutoSaveTimer: number | null = null;
   private voiceShouldRestart = false;
   private voiceCommittedText = '';
   private voiceMediaStream: MediaStream | null = null;
@@ -369,6 +374,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadRisks();
     this.loadLogs();
     if (this.apiService.isRssi()) {
+      if (window.matchMedia('(max-width: 700px)').matches) {
+        this.assistantHistoryOpen.set(false);
+        window.setTimeout(() => document.querySelector('.detector-filters-panel')?.removeAttribute('open'), 0);
+      }
       this.loadAssistantConversations();
       this.eventPollTimer = window.setInterval(() => this.loadEvents(true), 20000);
     }
@@ -377,6 +386,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.eventPollTimer !== null) window.clearInterval(this.eventPollTimer);
     this.cancelAssistantRequest(false);
+    this.clearAssistantAutoSaveTimer();
+    this.stopAssistantElapsedTimer();
     this.stopVoiceSession();
   }
 
@@ -1210,6 +1221,7 @@ Détail technique : ${detail}`;
     this.updateConversationTitleFromQuestion(question);
     this.persistActiveAssistantConversation();
     this.assistantLoading.set(true);
+    this.startAssistantElapsedTimer();
     const requestSequence = ++this.assistantRequestSequence;
 
     this.assistantRequestSubscription = this.apiService.runLocalRssiAssistant({
@@ -1231,6 +1243,7 @@ Détail technique : ${detail}`;
         ]);
         this.assistantQuestion = '';
         this.assistantLoading.set(false);
+        this.stopAssistantElapsedTimer();
         this.assistantRequestSubscription = null;
         this.persistActiveAssistantConversation();
         if (this.assistantAutoSpeak()) this.speakAssistantAnswer(result.answer);
@@ -1244,6 +1257,7 @@ Détail technique : ${detail}`;
           { role: 'assistant', text: message }
         ]);
         this.assistantLoading.set(false);
+        this.stopAssistantElapsedTimer();
         this.assistantRequestSubscription = null;
         this.persistActiveAssistantConversation();
       }
@@ -1258,6 +1272,7 @@ Détail technique : ${detail}`;
     }
     if (this.assistantLoading()) {
       this.assistantLoading.set(false);
+      this.stopAssistantElapsedTimer();
       if (addMessage) {
         this.assistantMessages.update(messages => [...messages, {
           role: 'assistant',
@@ -1266,6 +1281,20 @@ Détail technique : ${detail}`;
         this.persistActiveAssistantConversation();
       }
     }
+  }
+
+  private startAssistantElapsedTimer(): void {
+    this.stopAssistantElapsedTimer();
+    this.assistantElapsedSeconds.set(0);
+    this.assistantElapsedTimer = window.setInterval(() => {
+      this.assistantElapsedSeconds.update(value => value + 1);
+    }, 1000);
+  }
+
+  private stopAssistantElapsedTimer(): void {
+    if (this.assistantElapsedTimer !== null) window.clearInterval(this.assistantElapsedTimer);
+    this.assistantElapsedTimer = null;
+    this.assistantElapsedSeconds.set(0);
   }
 
   private shouldReuseAssistantEvent(question: string): boolean {
@@ -1541,19 +1570,56 @@ Détail technique : ${detail}`;
           window.setTimeout(() => {
             this.assistantAutofillActive.set(false);
             this.assistantCursorVisible.set(false);
-            this.incidentFormSuccess.set("La fiche a été remplie. Enregistrement automatique dans la base en cours…");
+            this.incidentFormSuccess.set("La fiche a été remplie. Vérifiez-la avant l’enregistrement automatique.");
             this.incidentFormError.set('');
-            this.assistantIncidentAutoSavePending = true;
             this.assistantMessages.update(messages => [...messages, {
               role: 'assistant',
-              text: 'La fiche est remplie. Je l’enregistre maintenant dans la base TELNET.'
+              text: 'La fiche est préremplie. Vous disposez de quelques secondes pour vérifier les champs; vous pouvez enregistrer immédiatement ou interrompre le compte à rebours.'
             }]);
             this.persistActiveAssistantConversation();
-            window.setTimeout(() => this.saveIncident(), 700);
+            this.startAssistantIncidentAutoSaveCountdown(12);
           }, 450);
         }
       }, index * 360);
     });
+  }
+
+  private startAssistantIncidentAutoSaveCountdown(seconds: number): void {
+    this.clearAssistantAutoSaveTimer();
+    this.assistantIncidentAwaitingConfirmation.set(true);
+    this.assistantAutoSaveCountdown.set(seconds);
+    this.assistantAutoSaveTimer = window.setInterval(() => {
+      const next = this.assistantAutoSaveCountdown() - 1;
+      this.assistantAutoSaveCountdown.set(Math.max(0, next));
+      if (next <= 0) this.saveAssistantIncidentNow();
+    }, 1000);
+  }
+
+  pauseAssistantAutoSave(): void {
+    this.clearAssistantAutoSaveTimer();
+    this.assistantIncidentAwaitingConfirmation.set(false);
+    this.incidentFormSuccess.set('Enregistrement automatique interrompu. Vérifiez la fiche puis cliquez sur Confirmer.');
+  }
+
+  saveAssistantIncidentNow(): void {
+    if (this.isSubmitting()) return;
+    this.clearAssistantAutoSaveTimer();
+    this.assistantIncidentAwaitingConfirmation.set(false);
+    this.assistantIncidentAutoSavePending = true;
+    this.incidentFormSuccess.set('Enregistrement de la fiche dans la base TELNET…');
+    this.saveIncident();
+  }
+
+  closeIncidentForm(): void {
+    this.clearAssistantAutoSaveTimer();
+    this.assistantIncidentAwaitingConfirmation.set(false);
+    this.showIncidentForm.set(false);
+  }
+
+  private clearAssistantAutoSaveTimer(): void {
+    if (this.assistantAutoSaveTimer !== null) window.clearInterval(this.assistantAutoSaveTimer);
+    this.assistantAutoSaveTimer = null;
+    this.assistantAutoSaveCountdown.set(0);
   }
 
   private completeAssistantIncidentEntries(entries: Array<[keyof Incident, any]>): Array<[keyof Incident, any]> {
@@ -1704,7 +1770,8 @@ Détail technique : ${detail}`;
     try {
       const saved = JSON.parse(localStorage.getItem(this.assistantConversationsKey) || '[]');
       if (Array.isArray(saved)) {
-        conversations = saved.filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages));
+        conversations = saved.filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages)
+          && item.messages.some((message: ChatMessage) => message.role === 'user' && String(message.text || '').trim()));
       }
     } catch {
       conversations = [];
@@ -1718,23 +1785,13 @@ Détail technique : ${detail}`;
   }
 
   private createAssistantConversation(): void {
-    const now = new Date().toISOString();
-    const conversation: AssistantConversation = {
-      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      title: 'Nouvelle conversation',
-      createdAt: now,
-      updatedAt: now,
-      messages: [this.defaultAssistantWelcomeMessage()],
-      inferredEventId: null
-    };
-    const conversations = [conversation, ...this.assistantConversations()].slice(0, 30);
-    this.assistantConversations.set(conversations);
-    this.activeAssistantConversationId.set(conversation.id);
-    this.assistantMessages.set([...conversation.messages]);
+    this.cancelAssistantRequest(false);
+    const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    this.activeAssistantConversationId.set(id);
+    this.assistantMessages.set([this.defaultAssistantWelcomeMessage()]);
     this.assistantInferredEventId = null;
     this.assistantResult.set(null);
     this.assistantQuestion = '';
-    localStorage.setItem(this.assistantConversationsKey, JSON.stringify(conversations));
   }
 
   private defaultAssistantWelcomeMessage(): ChatMessage {
@@ -1747,7 +1804,8 @@ Détail technique : ${detail}`;
   private updateConversationTitleFromQuestion(question: string): void {
     const id = this.activeAssistantConversationId();
     if (!id) return;
-    const title = question.replace(/\s+/g, ' ').trim().slice(0, 54) || 'Nouvelle conversation';
+    const title = question.replace(/\s+/g, ' ').trim().slice(0, 54);
+    if (!title) return;
     this.assistantConversations.update(items => items.map(item =>
       item.id === id && item.title === 'Nouvelle conversation' ? { ...item, title } : item
     ));
@@ -1756,11 +1814,24 @@ Détail technique : ${detail}`;
   private persistActiveAssistantConversation(): void {
     const id = this.activeAssistantConversationId();
     if (!id) return;
+    const messages = [...this.assistantMessages()];
+    const firstUserMessage = messages.find(message => message.role === 'user' && String(message.text || '').trim());
+    if (!firstUserMessage) return;
     const now = new Date().toISOString();
-    const updated = this.assistantConversations().map(item => item.id === id
-      ? { ...item, updatedAt: now, messages: [...this.assistantMessages()], inferredEventId: this.assistantInferredEventId }
-      : item
-    ).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    const current = this.assistantConversations().find(item => item.id === id);
+    const conversation: AssistantConversation = current
+      ? { ...current, updatedAt: now, messages, inferredEventId: this.assistantInferredEventId }
+      : {
+          id,
+          title: String(firstUserMessage.text).replace(/\s+/g, ' ').trim().slice(0, 54),
+          createdAt: now,
+          updatedAt: now,
+          messages,
+          inferredEventId: this.assistantInferredEventId
+        };
+    const updated = [conversation, ...this.assistantConversations().filter(item => item.id !== id)]
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+      .slice(0, 30);
     this.assistantConversations.set(updated);
     localStorage.setItem(this.assistantConversationsKey, JSON.stringify(updated));
   }
@@ -2326,6 +2397,10 @@ Détail technique : ${detail}`;
   }
 
   saveIncident(): void {
+    const wasAssistantReview = this.assistantIncidentAwaitingConfirmation();
+    this.clearAssistantAutoSaveTimer();
+    this.assistantIncidentAwaitingConfirmation.set(false);
+    if (wasAssistantReview) this.assistantIncidentAutoSavePending = true;
     this.incidentFormError.set('');
     this.incidentFormSuccess.set('');
     this.incidentInvalidRiskIndex.set(null);
@@ -2370,20 +2445,21 @@ Détail technique : ${detail}`;
         }
         this.incidentFormSuccess.set(saved?.message || 'Incident qualifié et plan enregistré.');
         this.incidentFormError.set('');
-        if (this.assistantIncidentAutoSavePending) {
+        const wasAssistantAutoSave = this.assistantIncidentAutoSavePending;
+        if (wasAssistantAutoSave) {
           this.assistantMessages.update(messages => [...messages, {
             role: 'assistant',
             text: `La fiche d’incident${savedId > 0 ? ' #' + savedId : ''} a été enregistrée dans la base TELNET. Vous pouvez la retrouver dans Plan d’Incidents.`
           }]);
           this.persistActiveAssistantConversation();
-          this.assistantIncidentAutoSavePending = false;
         }
+        this.assistantIncidentAutoSavePending = false;
         this.loadIncidents();
         this.loadRisks();
         this.loadEvents();
         this.loadLogs();
         this.isSubmitting.set(false);
-        window.setTimeout(() => this.showIncidentForm.set(false), 1200);
+        window.setTimeout(() => this.closeIncidentForm(), wasAssistantAutoSave ? 3200 : 1500);
       },
       error: (err) => {
         const saveMessage = this.extractApiErrorMessage(err, 'Erreur lors de la sauvegarde de l’incident.');

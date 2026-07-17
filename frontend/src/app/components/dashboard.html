@@ -314,7 +314,7 @@
         </div>
         <button class="btn btn-primary" (click)="openCreateEvent()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Déclarer un problème
+            <span>Déclarer un problème</span>
           </button>
         </div>
 
@@ -594,6 +594,10 @@
           <p>Posez une question libre ou décrivez une situation en quelques mots. L’assistant répond d’abord à votre question, puis utilise l’historique TELNET lorsqu’un cas comparable existe.</p>
         </div>
         <div class="assistant-heading-actions">
+          <button type="button" class="assistant-history-mobile-toggle" (click)="toggleAssistantHistory()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h12" /></svg>
+            Historique
+          </button>
           <button type="button" class="assistant-speech-toggle" [class.enabled]="assistantAutoSpeak()" (click)="toggleAssistantSpeech()" [attr.aria-pressed]="assistantAutoSpeak()">
             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
             {{ assistantAutoSpeak() ? 'Voix activée' : 'Voix désactivée' }}
@@ -613,11 +617,15 @@
           <button type="button" class="assistant-new-chat" (click)="clearAssistantConversation()">+ Nouvelle conversation</button>
           <div class="assistant-history-list">
             @for (conversation of assistantConversations(); track conversation.id) {
-              <button type="button" class="assistant-history-item" [class.active]="activeAssistantConversationId() === conversation.id" (click)="selectAssistantConversation(conversation.id)">
-                <span>{{ conversation.title }}</span>
-                <small>{{ conversation.updatedAt | date:'dd/MM HH:mm' }}</small>
-                <i role="button" tabindex="0" aria-label="Supprimer la conversation" (click)="deleteAssistantConversation(conversation.id, $event)">&times;</i>
-              </button>
+              <div class="assistant-history-item" [class.active]="activeAssistantConversationId() === conversation.id">
+                <button type="button" class="assistant-history-select" (click)="selectAssistantConversation(conversation.id)">
+                  <span>{{ conversation.title }}</span>
+                  <small>{{ conversation.updatedAt | date:'dd/MM HH:mm' }}</small>
+                </button>
+                <button type="button" class="assistant-history-delete" aria-label="Supprimer la conversation" (click)="deleteAssistantConversation(conversation.id, $event)">&times;</button>
+              </div>
+            } @empty {
+              <p class="assistant-history-empty">Les conversations apparaîtront ici après votre premier message.</p>
             }
           </div>
         </aside>
@@ -632,7 +640,7 @@
             @if (assistantLoading()) {
               <article class="chat-bubble assistant-bubble loading-bubble">
                 <span>Assistant RSSI</span>
-                <p>Analyse de la question et des données TELNET…</p>
+                <p>Analyse en cours… {{ assistantElapsedSeconds() }} s</p>
               </article>
             }
           </div>
@@ -807,7 +815,7 @@
     }
     <button class="nav-tab-btn" [class.active]="activeTab() === 'events'" (click)="switchTab('events')">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-      Mes Déclarations
+      <span>Mes Déclarations</span>
     </button>
     @if (apiService.isRssi()) {
       <button class="nav-tab-btn" [class.active]="activeTab() === 'incidents'" (click)="switchTab('incidents')">
@@ -824,11 +832,11 @@
   <div class="header-user">
     <button class="btn btn-account" (click)="openSettings()" title="Mon Profil">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-      Mon Profil
+      <span>Mon Profil</span>
     </button>
     <button class="btn btn-logout-outline btn-logout-large" (click)="logout()" title="Déconnexion">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-      Déconnexion
+      <span>Déconnexion</span>
     </button>
   </div>
 </header>
@@ -997,35 +1005,41 @@
         <div class="detector-heading-spacer" aria-hidden="true"></div>
         <button class="btn btn-primary" (click)="openCreateEvent()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Déclarer un problème
+            <span>Déclarer un problème</span>
           </button>
         </div>
 
       <div class="detector-list-toolbar" aria-label="Recherche et filtres des déclarations">
-        <label class="detector-search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
-          <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher un événement..." />
-          <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
-        </label>
-        <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
-          <option value="ALL">Tous les états</option>
-          <option value="Ouvert">Ouvert</option>
-          <option value="En cours">En cours</option>
-          <option value="Clos">Clos</option>
-        </select>
-        <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
-          <option value="ALL">Qualification</option>
-          <option value="NON_QUALIFIE">En attente</option>
-          <option value="INCIDENT">Incident</option>
-          <option value="NON_INCIDENT">Classé sans suite</option>
-        </select>
-        <select [(ngModel)]="eventRssiFilter" aria-label="Filtrer par envoi RSSI">
-          <option value="ALL">Tous les envois</option>
-          <option value="SENT">Envoyés</option>
-          <option value="NOT_SENT">Non envoyés</option>
-        </select>
-        <span>{{ getFilteredEvents().length }} résultat(s)</span>
-        <button type="button" class="filter-reset icon-reset detector-reset-button" (click)="resetEventFilters()" title="Réinitialiser la recherche" aria-label="Réinitialiser la recherche">↺</button>
+        <div class="detector-search-row">
+          <label class="detector-search-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
+            <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher un événement..." />
+            <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
+          </label>
+          <button type="button" class="filter-reset icon-reset detector-reset-button" (click)="resetEventFilters()" title="Réinitialiser la recherche" aria-label="Réinitialiser la recherche">↺</button>
+        </div>
+        <details class="detector-filters-panel" open>
+          <summary>Filtres <span>{{ getFilteredEvents().length }} résultat(s)</span></summary>
+          <div class="detector-filter-row">
+            <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
+              <option value="ALL">Tous les états</option>
+              <option value="Ouvert">Ouvert</option>
+              <option value="En cours">En cours</option>
+              <option value="Clos">Clos</option>
+            </select>
+            <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
+              <option value="ALL">Qualification</option>
+              <option value="NON_QUALIFIE">En attente</option>
+              <option value="INCIDENT">Incident</option>
+              <option value="NON_INCIDENT">Classé sans suite</option>
+            </select>
+            <select [(ngModel)]="eventRssiFilter" aria-label="Filtrer par envoi RSSI">
+              <option value="ALL">Tous les envois</option>
+              <option value="SENT">Envoyés</option>
+              <option value="NOT_SENT">Non envoyés</option>
+            </select>
+          </div>
+        </details>
       </div>
 
       <div class="table-container detector-events-container">
@@ -1593,7 +1607,7 @@
         <h3 class="modal-title">
           {{ selectedIncident() ? 'Incident' + incidentForm.id : 'Incident' + (incidents().length + 1) }}
         </h3>
-        <button class="btn-close-modal" (click)="showIncidentForm.set(false)">&times;</button>
+        <button class="btn-close-modal" (click)="closeIncidentForm()">&times;</button>
       </div>
       <form (ngSubmit)="saveIncident()">
         <div class="modal-body">
@@ -1605,6 +1619,18 @@
           }
           @if (incidentFormSuccess()) {
             <div class="form-inline-message form-inline-success form-sticky-message" role="status">{{ incidentFormSuccess() }}</div>
+          }
+          @if (assistantIncidentAwaitingConfirmation()) {
+            <section class="assistant-autosave-review" aria-live="polite">
+              <div>
+                <strong>Fiche préremplie : vérifiez les champs</strong>
+                <p>Enregistrement automatique dans {{ assistantAutoSaveCountdown() }} seconde(s). Vous pouvez enregistrer maintenant ou interrompre le compte à rebours pour continuer la vérification.</p>
+              </div>
+              <div class="assistant-autosave-actions">
+                <button type="button" class="btn btn-secondary" (click)="pauseAssistantAutoSave()">Continuer la vérification</button>
+                <button type="button" class="btn btn-primary" (click)="saveAssistantIncidentNow()">Enregistrer maintenant</button>
+              </div>
+            </section>
           }
           <!-- 1. Catégorisation de l'incident -->
           <div class="form-section">
@@ -1908,7 +1934,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="showIncidentForm.set(false)">Annuler</button>
+          <button type="button" class="btn btn-secondary" (click)="closeIncidentForm()">Annuler</button>
           <button type="submit" class="btn btn-primary" style="background: #1b3f75; color: white;">Confirmer</button>
         </div>
       </form>
