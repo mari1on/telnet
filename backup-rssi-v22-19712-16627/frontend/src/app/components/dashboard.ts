@@ -1382,7 +1382,7 @@ Détail technique : ${detail}`;
     this.cdr.detectChanges();
 
     const steps: Array<[keyof Evenement, any]> = [
-      ['libelleErreur', this.buildAssistantEventTitle(draft, result)],
+      ['libelleErreur', draft.libelleErreur || 'Événement technique à analyser'],
       ['descriptionDetaillee', draft.descriptionDetaillee || 'Situation décrite par le RSSI et à compléter après les premières vérifications.'],
       ['detecteParSource', draft.detecteParSource || 'AUTRE'],
       ['idTicket', draft.idTicket || this.generateAssistantTechnicalId('AI-TCK')],
@@ -1415,25 +1415,6 @@ Détail technique : ${detail}`;
         }
       }, index * 210);
     });
-  }
-
-
-  private buildAssistantEventTitle(draft: AssistantEventDraft, result: AssistantResponse): string {
-    const current = String(draft.libelleErreur || '').trim();
-    const normalizedCurrent = this.normalizeSearch(current);
-    const description = this.normalizeSearch(`${draft.descriptionDetaillee || ''} ${result.answer || ''}`);
-    const generic = !current || [
-      'authentication failure', 'evenement technique a analyser', 'probleme technique',
-      'incident de securite', 'anomalie technique'
-    ].includes(normalizedCurrent);
-    if (!generic) return current;
-    if (description.includes('ssh') && (description.includes('force brute') || description.includes('tentative'))) return 'Tentatives SSH par force brute';
-    if (description.includes('incendie') || description.includes('alarme feu')) return 'Alarme incendie';
-    if (description.includes('serveur') && (description.includes('panne') || description.includes('indisponible'))) return 'Indisponibilité du serveur';
-    if (description.includes('reseau') || description.includes('vpn')) return 'Panne de connectivité réseau';
-    if (description.includes('authentification') || description.includes('connexion')) return 'Échecs d’authentification répétés';
-    if (description.includes('pc') || description.includes('poste')) return 'Anomalie sur poste utilisateur';
-    return 'Événement technique à analyser';
   }
 
   private generateAssistantTechnicalId(prefix: string): string {
@@ -1789,9 +1770,8 @@ Détail technique : ${detail}`;
     try {
       const saved = JSON.parse(localStorage.getItem(this.assistantConversationsKey) || '[]');
       if (Array.isArray(saved)) {
-        conversations = saved.filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages))
-          .map((item: AssistantConversation) => ({ ...item, title: this.getConversationTitleCandidate(item.messages) }))
-          .filter((item: AssistantConversation) => Boolean(item.title));
+        conversations = saved.filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages)
+          && item.messages.some((message: ChatMessage) => message.role === 'user' && String(message.text || '').trim()));
       }
     } catch {
       conversations = [];
@@ -1821,23 +1801,13 @@ Détail technique : ${detail}`;
     };
   }
 
-  private getConversationTitleCandidate(messages: ChatMessage[]): string {
-    const greetings = /^(hi+|hello+|salut|bonjour|bonsoir|coucou|cv+|ca va|ça va|vous allez bien)[ !?.]*$/i;
-    const substantive = messages
-      .filter(message => message.role === 'user')
-      .map(message => String(message.text || '').replace(/\s+/g, ' ').trim())
-      .find(text => text.length >= 5 && !greetings.test(text));
-    return substantive ? substantive.slice(0, 54) : '';
-  }
-
   private updateConversationTitleFromQuestion(question: string): void {
     const id = this.activeAssistantConversationId();
     if (!id) return;
-    const messages = [...this.assistantMessages(), { role: 'user', text: question } as ChatMessage];
-    const title = this.getConversationTitleCandidate(messages);
+    const title = question.replace(/\s+/g, ' ').trim().slice(0, 54);
     if (!title) return;
     this.assistantConversations.update(items => items.map(item =>
-      item.id === id ? { ...item, title } : item
+      item.id === id && item.title === 'Nouvelle conversation' ? { ...item, title } : item
     ));
   }
 
@@ -1845,13 +1815,20 @@ Détail technique : ${detail}`;
     const id = this.activeAssistantConversationId();
     if (!id) return;
     const messages = [...this.assistantMessages()];
-    const title = this.getConversationTitleCandidate(messages);
-    if (!title) return;
+    const firstUserMessage = messages.find(message => message.role === 'user' && String(message.text || '').trim());
+    if (!firstUserMessage) return;
     const now = new Date().toISOString();
     const current = this.assistantConversations().find(item => item.id === id);
     const conversation: AssistantConversation = current
-      ? { ...current, title, updatedAt: now, messages, inferredEventId: this.assistantInferredEventId }
-      : { id, title, createdAt: now, updatedAt: now, messages, inferredEventId: this.assistantInferredEventId };
+      ? { ...current, updatedAt: now, messages, inferredEventId: this.assistantInferredEventId }
+      : {
+          id,
+          title: String(firstUserMessage.text).replace(/\s+/g, ' ').trim().slice(0, 54),
+          createdAt: now,
+          updatedAt: now,
+          messages,
+          inferredEventId: this.assistantInferredEventId
+        };
     const updated = [conversation, ...this.assistantConversations().filter(item => item.id !== id)]
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
       .slice(0, 30);

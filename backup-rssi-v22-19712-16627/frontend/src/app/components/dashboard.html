@@ -814,7 +814,7 @@
       </button>
     }
     <button class="nav-tab-btn" [class.active]="activeTab() === 'events'" (click)="switchTab('events')">
-      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9"></path><path d="M9 20v-6h6v6"></path></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
       <span>Mes Déclarations</span>
     </button>
     @if (apiService.isRssi()) {
@@ -1018,6 +1018,28 @@
           </label>
           <button type="button" class="filter-reset icon-reset detector-reset-button" (click)="resetEventFilters()" title="Réinitialiser la recherche" aria-label="Réinitialiser la recherche">↺</button>
         </div>
+        <details class="detector-filters-panel" open>
+          <summary>Filtres <span>{{ getFilteredEvents().length }} résultat(s)</span></summary>
+          <div class="detector-filter-row">
+            <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
+              <option value="ALL">Tous les états</option>
+              <option value="Ouvert">Ouvert</option>
+              <option value="En cours">En cours</option>
+              <option value="Clos">Clos</option>
+            </select>
+            <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
+              <option value="ALL">Qualification</option>
+              <option value="NON_QUALIFIE">En attente</option>
+              <option value="INCIDENT">Incident</option>
+              <option value="NON_INCIDENT">Classé sans suite</option>
+            </select>
+            <select [(ngModel)]="eventRssiFilter" aria-label="Filtrer par envoi RSSI">
+              <option value="ALL">Tous les envois</option>
+              <option value="SENT">Envoyés</option>
+              <option value="NOT_SENT">Non envoyés</option>
+            </select>
+          </div>
+        </details>
       </div>
 
       <div class="table-container detector-events-container">
@@ -1304,7 +1326,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
             </button>
             <button type="submit" class="detector-settings-save" [disabled]="isSubmitting()">
-              {{ isSubmitting() ? 'Enregistrement…' : 'Enregistrer' }}
+              {{ isSubmitting() ? 'Enregistrement…' : 'Enregistrer les changements' }}
             </button>
           </div>
         </form>

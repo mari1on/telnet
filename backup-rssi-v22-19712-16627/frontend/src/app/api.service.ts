@@ -194,7 +194,7 @@ export class ApiService {
       `${this.baseUrl}/rssi-assistant/analyze`,
       payload,
       { headers: this.getHeaders() }
-    ).pipe(timeout(75000));
+    ).pipe(timeout(60000));
   }
 
   generateLocalAiText(payload: {
