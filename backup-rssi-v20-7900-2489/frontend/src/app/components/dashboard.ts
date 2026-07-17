@@ -947,17 +947,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private sanitizeIncidentPayload(incident: Incident): Incident {
+    const isUpdate = Boolean(this.selectedIncident()?.id);
+    const knownRiskIds = new Set(
+      (this.selectedIncident()?.risques || [])
+        .map(risk => Number(risk.id || 0))
+        .filter(id => id > 0)
+    );
+    const normalizedTypes = (Array.isArray(incident.typesIncident) ? incident.typesIncident : [incident.typesIncident as any])
+      .map(value => String(value || '').trim())
+      .filter(Boolean);
+
     const payload: Incident = {
       ...incident,
-      typesIncident: (Array.isArray(incident.typesIncident) ? incident.typesIncident : [incident.typesIncident as any])
-        .map(value => String(value || '').trim())
-        .filter(Boolean),
+      typesIncident: normalizedTypes.length > 0 ? normalizedTypes : ['Autre'],
       risques: (Array.isArray(incident.risques) ? incident.risques : [])
-        .map(risk => ({
-          ...(risk.id ? { id: risk.id } : {}),
-          reference: (risk.reference || '').trim(),
-          description: (risk.description || '').trim()
-        }))
+        .map(risk => {
+          const id = Number(risk.id || 0);
+          return {
+            ...(isUpdate && id > 0 && knownRiskIds.has(id) ? { id } : {}),
+            reference: (risk.reference || '').trim(),
+            description: (risk.description || '').trim()
+          };
+        })
         .filter(risk => Boolean(risk.description)),
       evenement: { id: Number(incident.evenement?.id || 0) },
       hasRisquesAssocies: Boolean(incident.hasRisquesAssocies),
@@ -967,21 +978,30 @@ export class DashboardComponent implements OnInit, OnDestroy {
       miseAJourPcaNecessaire: Boolean(incident.miseAJourPcaNecessaire),
       risquesAMettreAJour: Boolean(incident.risquesAMettreAJour)
     };
-    const dateFields: (keyof Incident)[] = [
+
+    const nullableTemporalFields: (keyof Incident)[] = [
       'mesureDDT', 'mesureDateCloture', 'mesureHeureCloture', 'traitementDDT', 'traitementDateCloture',
       'correctiveDateDebut', 'correctiveDateCloture', 'dateMesureEfficacite', 'suiviDate',
-      'heureAttenuation', 'traitementHDT', 'traitementHeureCloture', 'heureTraitement'
+      'traitementHDT', 'traitementHeureCloture'
     ];
-    dateFields.forEach(field => {
-      if (payload[field] === '') (payload as any)[field] = null;
+    nullableTemporalFields.forEach(field => {
+      if (payload[field] === '' || payload[field] === undefined) (payload as any)[field] = null;
     });
+
+    // Ces deux propriétés sont des chaînes dans le backend, pas des objets LocalTime.
+    if (payload.heureAttenuation === undefined) payload.heureAttenuation = '';
+    if (payload.heureTraitement === undefined) payload.heureTraitement = '';
     return payload;
   }
 
   private extractApiErrorMessage(err: any, fallback: string): string {
     const body = err?.error;
     if (typeof body === 'string' && body.trim()) return body.trim();
-    return body?.message || body?.detail || body?.error || err?.message || fallback;
+    const detail = String(body?.detail || '').trim();
+    const message = String(body?.message || body?.error || err?.message || fallback).trim();
+    if (detail && !message.includes(detail)) return `${message}
+Détail technique : ${detail}`;
+    return message || fallback;
   }
 
   private prepareIncidentFormDefaults(): void {
@@ -2191,13 +2211,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
 
-    const operation = this.selectedIncident()
-      ? this.apiService.updateIncident(this.selectedIncident()!.id!, payload)
-      : this.apiService.createIncident(payload);
-
-    operation.subscribe({
-      next: () => {
-        this.incidentFormSuccess.set(this.selectedIncident() ? 'Plan de traitement mis à jour.' : 'Incident qualifié et plan créé.');
+    // Endpoint défensif V19 : un seul appel crée ou met à jour le plan
+    // selon l'événement rattaché. Il évite les problèmes d'entités JPA
+    // détachées et de désérialisation des dates/heures.
+    this.apiService.saveIncidentPlan(payload).subscribe({
+      next: (saved) => {
+        const savedId = Number(saved?.id || 0);
+        if (savedId > 0) {
+          this.selectedIncident.set({ ...this.incidentForm, id: savedId } as Incident);
+        }
+        this.incidentFormSuccess.set(saved?.message || 'Incident qualifié et plan enregistré.');
         this.incidentFormError.set('');
         this.loadIncidents();
         this.loadRisks();

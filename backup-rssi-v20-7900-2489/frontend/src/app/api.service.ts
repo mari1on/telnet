@@ -170,6 +170,14 @@ export class ApiService {
     return this.http.put<any>(`${this.baseUrl}/incidents/${id}`, incident, { headers: this.getHeaders() });
   }
 
+  saveIncidentPlan(incident: any): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/incidents/save-plan`, incident, { headers: this.getHeaders() });
+  }
+
+  getIncidentSaveVersion(): Observable<{ version: string }> {
+    return this.http.get<{ version: string }>(`${this.baseUrl}/incidents/save-plan/version`, { headers: this.getHeaders() });
+  }
+
   deleteIncident(id: number): Observable<any> {
     return this.http.delete<any>(`${this.baseUrl}/incidents/${id}`, { headers: this.getHeaders() });
   }

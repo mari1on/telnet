@@ -180,6 +180,15 @@ interface ChatMessage {
   text: string;
 }
 
+interface AssistantConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+  inferredEventId?: number | null;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -216,11 +225,30 @@ export class DashboardComponent implements OnInit, OnDestroy {
   assistantQuestion = '';
   assistantLoading = signal(false);
   assistantResult = signal<AssistantResponse | null>(null);
+  assistantConversations = signal<AssistantConversation[]>([]);
+  activeAssistantConversationId = signal('');
+  assistantHistoryOpen = signal(true);
+  voiceSessionVisible = signal(false);
+  voiceSessionTarget = signal<'events' | 'incidents' | 'logs' | 'assistant' | null>(null);
+  voiceSessionDraft = signal('');
+  voiceSessionInterim = signal('');
+  voiceSessionError = signal('');
+  voiceLevels = signal<number[]>(Array.from({ length: 28 }, () => 0.12));
+  private assistantRequestSubscription: any = null;
+  private assistantRequestSequence = 0;
+  private assistantIncidentAutoSavePending = false;
+  private voiceShouldRestart = false;
+  private voiceCommittedText = '';
+  private voiceMediaStream: MediaStream | null = null;
+  private voiceAudioContext: AudioContext | null = null;
+  private voiceAnalyser: AnalyserNode | null = null;
+  private voiceAnimationFrame: number | null = null;
   private eventPollTimer: number | null = null;
   private eventsInitialized = false;
   private readonly lastScannedEventKey = 'telnet_rssi_last_scanned_event_id';
   private readonly unreadEventIdsKey = 'telnet_rssi_unread_event_ids';
   private readonly dismissedNotificationEventKey = 'telnet_rssi_dismissed_notification_event_id';
+  private readonly assistantConversationsKey = 'telnet_rssi_assistant_conversations_v20';
 
   assistantMessages = signal<ChatMessage[]>([
     {
@@ -341,13 +369,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadRisks();
     this.loadLogs();
     if (this.apiService.isRssi()) {
+      this.loadAssistantConversations();
       this.eventPollTimer = window.setInterval(() => this.loadEvents(true), 20000);
     }
   }
 
   ngOnDestroy(): void {
     if (this.eventPollTimer !== null) window.clearInterval(this.eventPollTimer);
-    if (this.activeRecognition) this.activeRecognition.stop();
+    this.cancelAssistantRequest(false);
+    this.stopVoiceSession();
   }
 
   // --- Initializers ---
@@ -1167,23 +1197,28 @@ Détail technique : ${detail}`;
     const question = this.assistantQuestion.trim();
     if (!question) {
       this.assistantMessages.update(messages => [...messages, { role: 'assistant', text: 'Écrivez ou dictez une question avant de l’envoyer.' }]);
+      this.persistActiveAssistantConversation();
       return;
     }
 
-
+    this.cancelAssistantRequest(false);
     this.errorMsg.set('');
     const history = this.assistantMessages()
-      .slice(-8)
+      .slice(-12)
       .map(message => ({ role: message.role, text: message.text }));
     this.assistantMessages.update(messages => [...messages, { role: 'user', text: question }]);
+    this.updateConversationTitleFromQuestion(question);
+    this.persistActiveAssistantConversation();
     this.assistantLoading.set(true);
+    const requestSequence = ++this.assistantRequestSequence;
 
-    this.apiService.runLocalRssiAssistant({
+    this.assistantRequestSubscription = this.apiService.runLocalRssiAssistant({
       eventId: this.assistantSelectedEventId ?? (this.shouldReuseAssistantEvent(question) ? this.assistantInferredEventId : null),
       question,
       history
     }).subscribe({
       next: (result: AssistantResponse) => {
+        if (requestSequence !== this.assistantRequestSequence) return;
         this.assistantResult.set(result);
         if (result.selectedEventId != null) {
           this.assistantInferredEventId = result.selectedEventId;
@@ -1196,18 +1231,41 @@ Détail technique : ${detail}`;
         ]);
         this.assistantQuestion = '';
         this.assistantLoading.set(false);
+        this.assistantRequestSubscription = null;
+        this.persistActiveAssistantConversation();
         if (this.assistantAutoSpeak()) this.speakAssistantAnswer(result.answer);
       },
-      error: (err) => {
+      error: (err: any) => {
+        if (requestSequence !== this.assistantRequestSequence) return;
         const message = err?.error?.message
-          || 'L’assistant local ne répond pas. Consultez le diagnostic affiché par Spring Boot.';
+          || 'L’assistant ne répond pas pour le moment. Réessayez ou annulez la demande.';
         this.assistantMessages.update(messages => [
           ...messages,
           { role: 'assistant', text: message }
         ]);
         this.assistantLoading.set(false);
+        this.assistantRequestSubscription = null;
+        this.persistActiveAssistantConversation();
       }
     });
+  }
+
+  cancelAssistantRequest(addMessage = true): void {
+    this.assistantRequestSequence += 1;
+    if (this.assistantRequestSubscription) {
+      this.assistantRequestSubscription.unsubscribe();
+      this.assistantRequestSubscription = null;
+    }
+    if (this.assistantLoading()) {
+      this.assistantLoading.set(false);
+      if (addMessage) {
+        this.assistantMessages.update(messages => [...messages, {
+          role: 'assistant',
+          text: 'Réponse annulée. Vous pouvez modifier votre question ou démarrer une autre conversation.'
+        }]);
+        this.persistActiveAssistantConversation();
+      }
+    }
   }
 
   private shouldReuseAssistantEvent(question: string): boolean {
@@ -1483,8 +1541,15 @@ Détail technique : ${detail}`;
           window.setTimeout(() => {
             this.assistantAutofillActive.set(false);
             this.assistantCursorVisible.set(false);
-            this.incidentFormSuccess.set("La fiche a été préremplie. Vérifiez les propositions puis cliquez sur Confirmer pour l’enregistrer.");
+            this.incidentFormSuccess.set("La fiche a été remplie. Enregistrement automatique dans la base en cours…");
             this.incidentFormError.set('');
+            this.assistantIncidentAutoSavePending = true;
+            this.assistantMessages.update(messages => [...messages, {
+              role: 'assistant',
+              text: 'La fiche est remplie. Je l’enregistre maintenant dans la base TELNET.'
+            }]);
+            this.persistActiveAssistantConversation();
+            window.setTimeout(() => this.saveIncident(), 700);
           }, 450);
         }
       }, index * 360);
@@ -1604,17 +1669,100 @@ Détail technique : ${detail}`;
   }
 
   clearAssistantConversation(): void {
+    this.cancelAssistantRequest(false);
+    this.createAssistantConversation();
+  }
+
+  toggleAssistantHistory(): void {
+    this.assistantHistoryOpen.update(value => !value);
+  }
+
+  selectAssistantConversation(id: string): void {
+    const conversation = this.assistantConversations().find(item => item.id === id);
+    if (!conversation) return;
+    this.cancelAssistantRequest(false);
+    this.activeAssistantConversationId.set(id);
+    this.assistantMessages.set(conversation.messages.length ? [...conversation.messages] : [this.defaultAssistantWelcomeMessage()]);
+    this.assistantInferredEventId = conversation.inferredEventId ?? null;
     this.assistantResult.set(null);
     this.assistantQuestion = '';
-    this.assistantInferredEventId = null;
-    this.assistantPendingNewEventResult.set(null);
-    this.assistantEventAutofillActive.set(false);
-    this.assistantMessages.set([
-      {
-        role: 'assistant',
-        text: 'Nouvelle conversation prête. Posez une question sur TELNET ou décrivez la situation avec vos propres mots.'
+  }
+
+  deleteAssistantConversation(id: string, event?: Event): void {
+    event?.stopPropagation();
+    const remaining = this.assistantConversations().filter(item => item.id !== id);
+    this.assistantConversations.set(remaining);
+    localStorage.setItem(this.assistantConversationsKey, JSON.stringify(remaining));
+    if (this.activeAssistantConversationId() === id) {
+      if (remaining.length) this.selectAssistantConversation(remaining[0].id);
+      else this.createAssistantConversation();
+    }
+  }
+
+  private loadAssistantConversations(): void {
+    let conversations: AssistantConversation[] = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(this.assistantConversationsKey) || '[]');
+      if (Array.isArray(saved)) {
+        conversations = saved.filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages));
       }
-    ]);
+    } catch {
+      conversations = [];
+    }
+    conversations = conversations
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+      .slice(0, 30);
+    this.assistantConversations.set(conversations);
+    if (conversations.length) this.selectAssistantConversation(conversations[0].id);
+    else this.createAssistantConversation();
+  }
+
+  private createAssistantConversation(): void {
+    const now = new Date().toISOString();
+    const conversation: AssistantConversation = {
+      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      title: 'Nouvelle conversation',
+      createdAt: now,
+      updatedAt: now,
+      messages: [this.defaultAssistantWelcomeMessage()],
+      inferredEventId: null
+    };
+    const conversations = [conversation, ...this.assistantConversations()].slice(0, 30);
+    this.assistantConversations.set(conversations);
+    this.activeAssistantConversationId.set(conversation.id);
+    this.assistantMessages.set([...conversation.messages]);
+    this.assistantInferredEventId = null;
+    this.assistantResult.set(null);
+    this.assistantQuestion = '';
+    localStorage.setItem(this.assistantConversationsKey, JSON.stringify(conversations));
+  }
+
+  private defaultAssistantWelcomeMessage(): ChatMessage {
+    return {
+      role: 'assistant',
+      text: 'Nouvelle conversation prête. Posez une question sur TELNET ou décrivez une situation avec vos propres mots.'
+    };
+  }
+
+  private updateConversationTitleFromQuestion(question: string): void {
+    const id = this.activeAssistantConversationId();
+    if (!id) return;
+    const title = question.replace(/\s+/g, ' ').trim().slice(0, 54) || 'Nouvelle conversation';
+    this.assistantConversations.update(items => items.map(item =>
+      item.id === id && item.title === 'Nouvelle conversation' ? { ...item, title } : item
+    ));
+  }
+
+  private persistActiveAssistantConversation(): void {
+    const id = this.activeAssistantConversationId();
+    if (!id) return;
+    const now = new Date().toISOString();
+    const updated = this.assistantConversations().map(item => item.id === id
+      ? { ...item, updatedAt: now, messages: [...this.assistantMessages()], inferredEventId: this.assistantInferredEventId }
+      : item
+    ).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    this.assistantConversations.set(updated);
+    localStorage.setItem(this.assistantConversationsKey, JSON.stringify(updated));
   }
 
   openSettings(): void {
@@ -2222,6 +2370,14 @@ Détail technique : ${detail}`;
         }
         this.incidentFormSuccess.set(saved?.message || 'Incident qualifié et plan enregistré.');
         this.incidentFormError.set('');
+        if (this.assistantIncidentAutoSavePending) {
+          this.assistantMessages.update(messages => [...messages, {
+            role: 'assistant',
+            text: `La fiche d’incident${savedId > 0 ? ' #' + savedId : ''} a été enregistrée dans la base TELNET. Vous pouvez la retrouver dans Plan d’Incidents.`
+          }]);
+          this.persistActiveAssistantConversation();
+          this.assistantIncidentAutoSavePending = false;
+        }
         this.loadIncidents();
         this.loadRisks();
         this.loadEvents();
@@ -2230,8 +2386,17 @@ Détail technique : ${detail}`;
         window.setTimeout(() => this.showIncidentForm.set(false), 1200);
       },
       error: (err) => {
-        this.incidentFormError.set(this.extractApiErrorMessage(err, 'Erreur lors de la sauvegarde de l’incident.'));
+        const saveMessage = this.extractApiErrorMessage(err, 'Erreur lors de la sauvegarde de l’incident.');
+        this.incidentFormError.set(saveMessage);
         this.incidentFormSuccess.set('');
+        if (this.assistantIncidentAutoSavePending) {
+          this.assistantMessages.update(messages => [...messages, {
+            role: 'assistant',
+            text: `La fiche a été remplie, mais son enregistrement a échoué : ${saveMessage}`
+          }]);
+          this.persistActiveAssistantConversation();
+          this.assistantIncidentAutoSavePending = false;
+        }
         this.isSubmitting.set(false);
       }
     });
@@ -2267,67 +2432,149 @@ Détail technique : ${detail}`;
       return;
     }
 
-    if (this.activeRecognition) this.activeRecognition.stop();
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = this.getSpeechLocale(target);
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 5;
-    recognition.continuous = false;
+    this.stopVoiceSession();
+    this.voiceSessionTarget.set(target);
+    this.voiceSessionVisible.set(true);
+    this.voiceSessionDraft.set('');
+    this.voiceSessionInterim.set('');
+    this.voiceSessionError.set('');
+    this.voiceCommittedText = '';
+    this.voiceShouldRestart = true;
     this.activeVoiceSearch.set(target);
+    this.startVoiceLevelMonitor();
+    this.startPersistentRecognition();
+  }
+
+  confirmVoiceSession(): void {
+    const target = this.voiceSessionTarget();
+    const rawText = `${this.voiceSessionDraft()} ${this.voiceSessionInterim()}`.replace(/\s+/g, ' ').trim();
+    if (!target || !rawText) {
+      this.voiceSessionError.set('Aucun texte français n’a été reconnu. Continuez à parler ou annulez.');
+      return;
+    }
+    const text = this.cleanVoiceSearchText(rawText, target);
+    if (target === 'events') {
+      this.eventStateFilter = 'ALL';
+      this.eventQualificationFilter = 'ALL';
+      this.eventRssiFilter = 'ALL';
+      this.eventSearch = text;
+    } else if (target === 'incidents') {
+      this.incidentStateFilter = 'ALL';
+      this.incidentSearch = text;
+    } else if (target === 'logs') {
+      this.logSearch = text;
+    } else {
+      this.assistantQuestion = rawText;
+    }
+    this.stopVoiceSession();
+    if (target !== 'assistant') {
+      const count = this.countVoiceMatches(target, text);
+      this.successMsg.set(`Recherche vocale appliquée : « ${rawText} » — ${count} résultat(s).`);
+    }
+    this.cdr.detectChanges();
+  }
+
+  cancelVoiceSession(): void {
+    this.stopVoiceSession();
+  }
+
+  private startPersistentRecognition(): void {
+    if (!this.voiceShouldRestart || !this.voiceSessionVisible()) return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 3;
+    recognition.continuous = true;
     this.activeRecognition = recognition;
 
     recognition.onresult = (event: any) => this.ngZone.run(() => {
-      const finalResult = Array.from(event.results || []).find((result: any) => result.isFinal) as any
-        || event.results?.[event.results.length - 1];
-      const alternatives = Array.from(finalResult || []) as any[];
-      const candidates = alternatives
-        .map(item => String(item?.transcript || '').trim())
-        .filter(Boolean);
-      const rawText = this.selectBestVoiceCandidate(target, candidates);
-      const text = this.cleanVoiceSearchText(rawText, target);
-
-      if (target === 'events') {
-        this.eventStateFilter = 'ALL';
-        this.eventQualificationFilter = 'ALL';
-        this.eventRssiFilter = 'ALL';
-        this.eventSearch = text;
-      } else if (target === 'incidents') {
-        this.incidentStateFilter = 'ALL';
-        this.incidentSearch = text;
-      } else if (target === 'logs') {
-        this.logSearch = text;
-      } else {
-        this.assistantQuestion = rawText;
+      let interim = '';
+      let finalText = '';
+      for (let index = event.resultIndex || 0; index < event.results.length; index += 1) {
+        const transcript = String(event.results[index]?.[0]?.transcript || '').trim();
+        if (!transcript) continue;
+        if (event.results[index].isFinal) finalText += `${transcript} `;
+        else interim += `${transcript} `;
       }
-
-      this.activeVoiceSearch.set(null);
-      this.activeRecognition = null;
-      if (target !== 'assistant') {
-        const count = this.countVoiceMatches(target, text);
-        this.successMsg.set(rawText ? `Recherche vocale appliquée : « ${rawText} » — ${count} résultat(s).` : 'Aucun mot reconnu.');
+      if (finalText.trim()) {
+        this.voiceCommittedText = `${this.voiceCommittedText} ${finalText}`.replace(/\s+/g, ' ').trim();
+        this.voiceSessionDraft.set(this.voiceCommittedText);
       }
+      this.voiceSessionInterim.set(interim.trim());
       this.cdr.detectChanges();
-      window.setTimeout(() => this.cdr.detectChanges(), 0);
     });
     recognition.onerror = (event: any) => this.ngZone.run(() => {
-      this.activeVoiceSearch.set(null);
-      this.activeRecognition = null;
-      const messages: Record<string, string> = {
-        'not-allowed': 'Autorisez le microphone dans les paramètres du navigateur.',
-        'audio-capture': 'Aucun microphone utilisable n’a été détecté.',
-        'no-speech': 'Aucune parole n’a été détectée. Rapprochez-vous du microphone et réessayez.',
-        network: 'Le service de reconnaissance vocale du navigateur est indisponible.'
-      };
-      this.errorMsg.set(messages[event.error] || `Recherche vocale indisponible : ${event.error || 'erreur inconnue'}.`);
+      const error = String(event?.error || '');
+      if (error === 'not-allowed' || error === 'service-not-allowed') {
+        this.voiceSessionError.set('Autorisez le microphone dans les paramètres du navigateur.');
+        this.voiceShouldRestart = false;
+      } else if (error === 'audio-capture') {
+        this.voiceSessionError.set('Aucun microphone utilisable n’a été détecté.');
+        this.voiceShouldRestart = false;
+      } else if (error !== 'no-speech' && error !== 'aborted') {
+        this.voiceSessionError.set(`Reconnaissance vocale interrompue : ${error || 'erreur inconnue'}.`);
+      }
       this.cdr.detectChanges();
     });
     recognition.onend = () => this.ngZone.run(() => {
-      this.activeVoiceSearch.set(null);
       this.activeRecognition = null;
-      this.cdr.detectChanges();
+      if (this.voiceShouldRestart && this.voiceSessionVisible()) {
+        window.setTimeout(() => this.startPersistentRecognition(), 250);
+      }
     });
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      window.setTimeout(() => this.startPersistentRecognition(), 350);
+    }
+  }
+
+  private async startVoiceLevelMonitor(): Promise<void> {
+    try {
+      this.voiceMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.voiceAudioContext = new AudioContext();
+      const source = this.voiceAudioContext.createMediaStreamSource(this.voiceMediaStream);
+      this.voiceAnalyser = this.voiceAudioContext.createAnalyser();
+      this.voiceAnalyser.fftSize = 64;
+      this.voiceAnalyser.smoothingTimeConstant = 0.72;
+      source.connect(this.voiceAnalyser);
+      const data = new Uint8Array(this.voiceAnalyser.frequencyBinCount);
+      const draw = () => {
+        if (!this.voiceAnalyser || !this.voiceSessionVisible()) return;
+        this.voiceAnalyser.getByteFrequencyData(data);
+        const levels = Array.from({ length: 28 }, (_, index) => {
+          const value = data[Math.floor(index * data.length / 28)] || 0;
+          return Math.max(0.1, Math.min(1, value / 185));
+        });
+        this.voiceLevels.set(levels);
+        this.voiceAnimationFrame = requestAnimationFrame(draw);
+      };
+      draw();
+    } catch {
+      this.voiceSessionError.set('Le niveau sonore ne peut pas être affiché, mais la transcription peut rester disponible.');
+    }
+  }
+
+  private stopVoiceSession(): void {
+    this.voiceShouldRestart = false;
+    if (this.activeRecognition) {
+      try { this.activeRecognition.abort(); } catch { /* aucune action */ }
+      this.activeRecognition = null;
+    }
+    if (this.voiceAnimationFrame !== null) cancelAnimationFrame(this.voiceAnimationFrame);
+    this.voiceAnimationFrame = null;
+    this.voiceMediaStream?.getTracks().forEach(track => track.stop());
+    this.voiceMediaStream = null;
+    if (this.voiceAudioContext) void this.voiceAudioContext.close();
+    this.voiceAudioContext = null;
+    this.voiceAnalyser = null;
+    this.activeVoiceSearch.set(null);
+    this.voiceSessionVisible.set(false);
+    this.voiceSessionTarget.set(null);
+    this.voiceSessionInterim.set('');
+    this.voiceLevels.set(Array.from({ length: 28 }, () => 0.12));
   }
 
   private selectBestVoiceCandidate(target: 'events' | 'incidents' | 'logs' | 'assistant', candidates: string[]): string {

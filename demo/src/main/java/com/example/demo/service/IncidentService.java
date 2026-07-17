@@ -1,13 +1,17 @@
 package com.example.demo.service;
 
+import com.example.demo.entity.Evenement;
 import com.example.demo.entity.Incident;
-import com.example.demo.repository.IncidentRepository;
+import com.example.demo.entity.Risque;
 import com.example.demo.repository.EvenementRepository;
+import com.example.demo.repository.IncidentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,129 +38,51 @@ public class IncidentService {
         return incidentRepository.findById(id);
     }
 
-    public Incident createIncident(Incident incident, String username) {
-        if (incident.getEvenement() != null && incident.getEvenement().getId() != null) {
-            Long eventId = incident.getEvenement().getId();
-            var existingIncidents = incidentRepository.findByEvenementId(eventId);
-            if (!existingIncidents.isEmpty()) {
-                return existingIncidents.get(0);
-            }
-            evenementRepository.findById(eventId).ifPresent(incident::setEvenement);
-        }
-        validateRisks(incident.getRisques());
-        if (incident.getRisques() != null) {
-            incident.getRisques().forEach(r -> {
-                r.setReference(normalizeOptionalReference(r.getReference()));
-                r.setDescription(r.getDescription().trim());
-                r.setIncident(incident);
-            });
-        }
-        refreshDerivedDurations(incident);
-        Incident saved = incidentRepository.save(incident);
-        auditLogService.logAction(username, "Création de l'Incident N° " + saved.getId() + " lié à l'Événement N° " + (saved.getEvenement() != null ? saved.getEvenement().getId() : "null"));
+    /**
+     * Enregistre un plan d'incident de façon idempotente : si la qualification a
+     * déjà créé un incident vide pour l'événement, ce plan est mis à jour au lieu
+     * de tenter de créer un doublon.
+     */
+    @Transactional
+    public Incident createIncident(Incident incoming, String username) {
+        Evenement event = requireManagedEvent(incoming);
+        Incident target = incidentRepository.findByEvenementId(event.getId())
+                .stream()
+                .findFirst()
+                .orElseGet(Incident::new);
+        boolean creation = target.getId() == null;
+
+        copyEditableFields(target, incoming);
+        target.setEvenement(event);
+        replaceRisks(target, incoming.getRisques());
+        refreshDerivedDurations(target);
+
+        Incident saved = incidentRepository.saveAndFlush(target);
+        safeAudit(username, creation
+                ? "Création de l'Incident N° " + saved.getId() + " lié à l'Événement N° " + event.getId()
+                : "Mise à jour de l'Incident N° " + saved.getId() + " lié à l'Événement N° " + event.getId());
         return saved;
     }
 
-    public Optional<Incident> updateIncident(Long id, Incident details, String username) {
-        return incidentRepository.findById(id).map(existing -> {
-            boolean wasClosedNow = "Clôturé".equalsIgnoreCase(details.getTraitementEtat()) && !"Clôturé".equalsIgnoreCase(existing.getTraitementEtat());
-            
-            existing.setTypesIncident(details.getTypesIncident());
-            existing.setNiveauImpact(details.getNiveauImpact());
-            existing.setDureeIndisponibilite(details.getDureeIndisponibilite());
-            
-            // Attenuation
-            existing.setMesureActionNumero(details.getMesureActionNumero());
-            existing.setMesureAction(details.getMesureAction());
-            existing.setMesureResponsable(details.getMesureResponsable());
-            existing.setMesureDelai(details.getMesureDelai());
-            existing.setMesureEtat(details.getMesureEtat());
-            existing.setMesureDDT(details.getMesureDDT());
-            existing.setMesureDateCloture(details.getMesureDateCloture());
-            existing.setMesureHeureCloture(details.getMesureHeureCloture());
-            existing.setDureeAttenuation(details.getDureeAttenuation());
-            existing.setHeureAttenuation(details.getHeureAttenuation());
+    @Transactional
+    public Optional<Incident> updateIncident(Long id, Incident incoming, String username) {
+        return incidentRepository.findById(id).map(target -> {
+            boolean wasClosedNow = "Clôturé".equalsIgnoreCase(incoming.getTraitementEtat())
+                    && !"Clôturé".equalsIgnoreCase(target.getTraitementEtat());
 
-            // Traitement
-            existing.setTraitementAction(details.getTraitementAction());
-            existing.setTraitementDDT(details.getTraitementDDT());
-            existing.setTraitementHDT(details.getTraitementHDT());
-            existing.setTraitementResponsable(details.getTraitementResponsable());
-            existing.setTraitementEtat(details.getTraitementEtat());
-            existing.setTraitementDateCloture(details.getTraitementDateCloture());
-            existing.setTraitementHeureCloture(details.getTraitementHeureCloture());
-            existing.setDureeTraitement(details.getDureeTraitement());
-            existing.setHeureTraitement(details.getHeureTraitement());
-
-            // Correction
-            existing.setPreconisation(details.getPreconisation());
-            existing.setActionCorrective(details.getActionCorrective());
-            existing.setCorrectiveResponsable(details.getCorrectiveResponsable());
-            existing.setCorrectiveDateDebut(details.getCorrectiveDateDebut());
-            existing.setCorrectiveDateCloture(details.getCorrectiveDateCloture());
-            existing.setDateMesureEfficacite(details.getDateMesureEfficacite());
-            existing.setEfficacite(details.getEfficacite());
-            existing.setCommentaireEfficacite(details.getCommentaireEfficacite());
-
-            // Details, PCA and risks
-            existing.setHasRisquesAssocies(details.getHasRisquesAssocies());
-            existing.setImpactContinuite(details.getImpactContinuite());
-            existing.setImpactContinuiteDescription(details.getImpactContinuiteDescription());
-            existing.setCapitalisation(details.getCapitalisation());
-
-            existing.setEvenementsSimilaires(details.getEvenementsSimilaires());
-            existing.setEvenementsDetailsDescription(details.getEvenementsDetailsDescription());
-            existing.setChangementDeclenche(details.getChangementDeclenche());
-            existing.setChangementDeclencheDescription(details.getChangementDeclencheDescription());
-            existing.setMiseAJourPcaNecessaire(details.getMiseAJourPcaNecessaire());
-            existing.setReferencePca(details.getReferencePca());
-
-            validateRisks(details.getRisques());
-            if (details.getRisques() == null || details.getRisques().isEmpty()) {
-                existing.getRisques().clear();
-            } else {
-                List<com.example.demo.entity.Risque> current = existing.getRisques();
-                current.removeIf(r -> details.getRisques().stream().noneMatch(dr -> dr.getId() != null && dr.getId().equals(r.getId())));
-                for (com.example.demo.entity.Risque newOrUpdated : details.getRisques()) {
-                    newOrUpdated.setReference(normalizeOptionalReference(newOrUpdated.getReference()));
-                    newOrUpdated.setDescription(newOrUpdated.getDescription().trim());
-                    if (newOrUpdated.getId() == null) {
-                        newOrUpdated.setIncident(existing);
-                        current.add(newOrUpdated);
-                    } else {
-                        current.stream().filter(r -> r.getId().equals(newOrUpdated.getId())).findFirst().ifPresent(r -> {
-                            r.setReference(newOrUpdated.getReference());
-                            r.setDescription(newOrUpdated.getDescription());
-                        });
-                    }
-                }
+            copyEditableFields(target, incoming);
+            if (incoming.getEvenement() != null && incoming.getEvenement().getId() != null) {
+                target.setEvenement(evenementRepository.findById(incoming.getEvenement().getId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "L'événement rattaché à l'incident est introuvable.")));
             }
+            replaceRisks(target, incoming.getRisques());
+            refreshDerivedDurations(target);
 
-            existing.setRisquesAMettreAJour(details.getRisquesAMettreAJour());
-            existing.setRisquesMiseAJour(details.getRisquesMiseAJour());
-            existing.setRisquesMiseAJourDescription(details.getRisquesMiseAJourDescription());
-
-            // Incident tracking file metadata
-            existing.setSuiviEdition(details.getSuiviEdition());
-            existing.setSuiviDate(details.getSuiviDate());
-            existing.setSuiviAuteur(details.getSuiviAuteur());
-            existing.setSuiviCommentaires(details.getSuiviCommentaires());
-
-            // Associated Evenement
-            if (details.getEvenement() != null && details.getEvenement().getId() != null) {
-                evenementRepository.findById(details.getEvenement().getId())
-                    .ifPresent(existing::setEvenement);
-            } else {
-                existing.setEvenement(null);
-            }
-
-            refreshDerivedDurations(existing);
-            Incident saved = incidentRepository.save(existing);
-            if (wasClosedNow) {
-                auditLogService.logAction(username, "Incident N° " + saved.getId() + " Clôturé.");
-            } else {
-                auditLogService.logAction(username, "Mise à jour de l'Incident N° " + saved.getId());
-            }
+            Incident saved = incidentRepository.saveAndFlush(target);
+            safeAudit(username, wasClosedNow
+                    ? "Incident N° " + saved.getId() + " Clôturé."
+                    : "Mise à jour de l'Incident N° " + saved.getId());
             return saved;
         });
     }
@@ -164,7 +90,7 @@ public class IncidentService {
     @Transactional
     public boolean deleteIncident(Long id, String username) {
         return incidentRepository.findById(id).map(existing -> {
-            var linkedEvent = existing.getEvenement();
+            Evenement linkedEvent = existing.getEvenement();
             if (existing.getRisques() != null) {
                 existing.getRisques().clear();
             }
@@ -179,23 +105,140 @@ public class IncidentService {
                 evenementRepository.save(linkedEvent);
             }
 
-            auditLogService.logAction(username, "Suppression de l'Incident N° " + id);
+            safeAudit(username, "Suppression de l'Incident N° " + id);
             return true;
         }).orElse(false);
     }
-    private void validateRisks(List<com.example.demo.entity.Risque> risks) {
-        if (risks == null) return;
-        for (int index = 0; index < risks.size(); index++) {
-            var risk = risks.get(index);
-            if (risk == null || risk.getDescription() == null || risk.getDescription().isBlank()) {
-                throw new IllegalArgumentException("La description du risque n°" + (index + 1) + " est obligatoire.");
-            }
+
+    private Evenement requireManagedEvent(Incident incoming) {
+        if (incoming == null || incoming.getEvenement() == null || incoming.getEvenement().getId() == null) {
+            throw new IllegalArgumentException("Sélectionnez l'événement rattaché à l'incident.");
         }
+        return evenementRepository.findById(incoming.getEvenement().getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "L'événement rattaché à l'incident est introuvable."));
     }
 
-    private String normalizeOptionalReference(String value) {
-        if (value == null || value.isBlank()) return null;
-        return value.trim();
+    /**
+     * Copie uniquement les données éditables. Les textes courts sont limités à
+     * la taille d'une colonne VARCHAR classique afin qu'une réponse IA trop
+     * longue ne bloque pas toute la fiche.
+     */
+    private void copyEditableFields(Incident target, Incident source) {
+        target.setTypesIncident(normalizeTypes(source.getTypesIncident()));
+        target.setNiveauImpact(shortText(source.getNiveauImpact(), 240));
+        target.setDureeIndisponibilite(shortText(source.getDureeIndisponibilite(), 240));
+
+        target.setMesureActionNumero(shortText(source.getMesureActionNumero(), 240));
+        target.setMesureAction(text(source.getMesureAction()));
+        target.setMesureResponsable(shortText(source.getMesureResponsable(), 240));
+        target.setMesureDelai(shortText(source.getMesureDelai(), 240));
+        target.setMesureEtat(shortText(source.getMesureEtat(), 240));
+        target.setMesureDDT(source.getMesureDDT());
+        target.setDureeAttenuation(shortText(source.getDureeAttenuation(), 240));
+        target.setHeureAttenuation(shortText(source.getHeureAttenuation(), 240));
+        target.setMesureDateCloture(source.getMesureDateCloture());
+        target.setMesureHeureCloture(source.getMesureHeureCloture());
+
+        target.setTraitementAction(text(source.getTraitementAction()));
+        target.setTraitementDDT(source.getTraitementDDT());
+        target.setTraitementHDT(source.getTraitementHDT());
+        target.setTraitementResponsable(shortText(source.getTraitementResponsable(), 240));
+        target.setTraitementEtat(shortText(source.getTraitementEtat(), 240));
+        target.setTraitementDateCloture(source.getTraitementDateCloture());
+        target.setTraitementHeureCloture(source.getTraitementHeureCloture());
+        target.setDureeTraitement(shortText(source.getDureeTraitement(), 240));
+        target.setHeureTraitement(shortText(source.getHeureTraitement(), 240));
+
+        target.setPreconisation(text(source.getPreconisation()));
+        target.setActionCorrective(text(source.getActionCorrective()));
+        target.setCorrectiveResponsable(shortText(source.getCorrectiveResponsable(), 240));
+        target.setCorrectiveDateDebut(source.getCorrectiveDateDebut());
+        target.setCorrectiveDateCloture(source.getCorrectiveDateCloture());
+        target.setDateMesureEfficacite(source.getDateMesureEfficacite());
+        target.setEfficacite(shortText(source.getEfficacite(), 240));
+        target.setCommentaireEfficacite(text(source.getCommentaireEfficacite()));
+
+        target.setHasRisquesAssocies(Boolean.TRUE.equals(source.getHasRisquesAssocies()));
+        target.setImpactContinuite(Boolean.TRUE.equals(source.getImpactContinuite()));
+        target.setImpactContinuiteDescription(text(source.getImpactContinuiteDescription()));
+        target.setCapitalisation(Boolean.TRUE.equals(source.getCapitalisation()));
+        target.setEvenementsSimilaires(shortText(source.getEvenementsSimilaires(), 240));
+        target.setEvenementsDetailsDescription(text(source.getEvenementsDetailsDescription()));
+        target.setChangementDeclenche(Boolean.TRUE.equals(source.getChangementDeclenche()));
+        target.setChangementDeclencheDescription(text(source.getChangementDeclencheDescription()));
+        target.setMiseAJourPcaNecessaire(Boolean.TRUE.equals(source.getMiseAJourPcaNecessaire()));
+        target.setReferencePca(shortText(source.getReferencePca(), 240));
+        target.setRisquesAMettreAJour(Boolean.TRUE.equals(source.getRisquesAMettreAJour()));
+        target.setRisquesMiseAJour(text(source.getRisquesMiseAJour()));
+        target.setRisquesMiseAJourDescription(text(source.getRisquesMiseAJourDescription()));
+        target.setSuiviEdition(shortText(source.getSuiviEdition(), 240));
+        target.setSuiviDate(source.getSuiviDate());
+        target.setSuiviAuteur(shortText(source.getSuiviAuteur(), 240));
+        target.setSuiviCommentaires(text(source.getSuiviCommentaires()));
+    }
+
+    /**
+     * Les identifiants de risques reçus du navigateur ou du modèle IA ne sont
+     * jamais réutilisés. On reconstruit des entités enfants propres, ce qui évite
+     * l'erreur Hibernate « detached entity passed to persist ».
+     */
+    private void replaceRisks(Incident target, List<Risque> incomingRisks) {
+        List<Risque> cleanRisks = new ArrayList<>();
+        if (incomingRisks != null) {
+            for (int index = 0; index < incomingRisks.size(); index++) {
+                Risque incoming = incomingRisks.get(index);
+                if (incoming == null || incoming.getDescription() == null || incoming.getDescription().isBlank()) {
+                    throw new IllegalArgumentException(
+                            "La description du risque n°" + (index + 1) + " est obligatoire.");
+                }
+                Risque risk = new Risque();
+                risk.setReference(shortText(incoming.getReference(), 240));
+                risk.setDescription(text(incoming.getDescription()));
+                risk.setIncident(target);
+                cleanRisks.add(risk);
+            }
+        }
+
+        if (target.getRisques() == null) {
+            target.setRisques(new ArrayList<>());
+        } else {
+            target.getRisques().clear();
+        }
+        target.getRisques().addAll(cleanRisks);
+        target.setHasRisquesAssocies(!cleanRisks.isEmpty() || Boolean.TRUE.equals(target.getHasRisquesAssocies()));
+    }
+
+    private List<String> normalizeTypes(List<String> source) {
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        if (source != null) {
+            for (String value : source) {
+                String normalized = shortText(value, 240);
+                if (normalized != null) unique.add(normalized);
+            }
+        }
+        if (unique.isEmpty()) unique.add("Autre");
+        return new ArrayList<>(unique);
+    }
+
+    private String text(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String shortText(String value, int maximum) {
+        String normalized = text(value);
+        if (normalized == null) return null;
+        return normalized.length() <= maximum ? normalized : normalized.substring(0, maximum);
+    }
+
+    private void safeAudit(String username, String action) {
+        try {
+            auditLogService.logAction(username, action);
+        } catch (RuntimeException ignored) {
+            // L'échec du journal d'audit ne doit pas annuler l'enregistrement métier.
+        }
     }
 
     private void refreshDerivedDurations(Incident incident) {
@@ -205,11 +248,7 @@ public class IncidentService {
 
         LocalDateTime start = incident.getEvenement().getDateHeureDetection();
         LocalDateTime end = firstClosureDateTime(incident);
-        if (end == null) {
-            // Un incident ouvert a tout de même une durée d'indisponibilité :
-            // elle est calculée jusqu'au moment de la sauvegarde.
-            end = LocalDateTime.now();
-        }
+        if (end == null) end = LocalDateTime.now();
         if (!end.isBefore(start)) {
             incident.setDureeIndisponibilite(formatDuration(Duration.between(start, end)));
         }
@@ -247,12 +286,10 @@ public class IncidentService {
         long days = totalMinutes / 1440;
         long hours = (totalMinutes % 1440) / 60;
         long minutes = totalMinutes % 60;
-
         StringBuilder result = new StringBuilder();
         if (days > 0) result.append(days).append("j ");
         if (hours > 0) result.append(hours).append("h ");
         if (minutes > 0 || result.isEmpty()) result.append(minutes).append("m");
         return result.toString().trim();
     }
-
 }

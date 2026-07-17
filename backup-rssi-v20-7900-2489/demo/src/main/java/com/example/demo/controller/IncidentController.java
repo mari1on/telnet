@@ -4,9 +4,7 @@ import com.example.demo.entity.Incident;
 import com.example.demo.service.IncidentService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -37,13 +35,14 @@ public class IncidentController {
             @RequestBody Incident incident,
             @RequestHeader(value = "X-User-Username", required = false) String username) {
         try {
-            Incident saved = incidentService.createIncident(incident, username);
-            return ResponseEntity.ok(successBody(saved, "Incident et plan enregistrés."));
+            return ResponseEntity.ok(incidentService.createIncident(incident, username));
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(errorBody(ex.getMessage(), ex));
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         } catch (RuntimeException ex) {
-            return ResponseEntity.internalServerError().body(errorBody(
-                    "Impossible d’enregistrer l’incident.", ex));
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message", "Impossible d’enregistrer l’incident. Vérifiez les champs du plan et réessayez.",
+                    "detail", rootMessage(ex)
+            ));
         }
     }
 
@@ -54,14 +53,15 @@ public class IncidentController {
             @RequestHeader(value = "X-User-Username", required = false) String username) {
         try {
             return incidentService.updateIncident(id, details, username)
-                    .<ResponseEntity<?>>map(saved -> ResponseEntity.ok(
-                            successBody(saved, "Plan d’incident mis à jour.")))
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(errorBody(ex.getMessage(), ex));
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         } catch (RuntimeException ex) {
-            return ResponseEntity.internalServerError().body(errorBody(
-                    "Impossible de mettre à jour l’incident.", ex));
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "message", "Impossible de mettre à jour l’incident. Vérifiez les champs du plan et réessayez.",
+                    "detail", rootMessage(ex)
+            ));
         }
     }
 
@@ -74,31 +74,13 @@ public class IncidentController {
         }
         return ResponseEntity.notFound().build();
     }
-
-    private Map<String, Object> successBody(Incident saved, String message) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("id", saved.getId());
-        body.put("eventId", saved.getEvenement() == null ? null : saved.getEvenement().getId());
-        body.put("message", message);
-        return body;
-    }
-
-    private Map<String, Object> errorBody(String message, Throwable error) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", message == null || message.isBlank()
-                ? "Impossible d’enregistrer l’incident." : message);
-        body.put("detail", rootMessage(error));
-        return body;
-    }
-
     private String rootMessage(Throwable error) {
         Throwable current = error;
         while (current.getCause() != null && current.getCause() != current) {
             current = current.getCause();
         }
         String message = current.getMessage();
-        return message == null || message.isBlank()
-                ? error.getClass().getSimpleName()
-                : message;
+        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
     }
 }
+

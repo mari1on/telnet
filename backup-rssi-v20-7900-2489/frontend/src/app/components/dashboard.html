@@ -80,35 +80,6 @@
       </aside>
     }
 
-    @if (voiceSessionVisible()) {
-      <div class="voice-capture-backdrop" role="dialog" aria-modal="true" aria-labelledby="voice-capture-title">
-        <section class="voice-capture-panel">
-          <div class="voice-capture-head">
-            <div>
-              <span class="voice-live-dot" aria-hidden="true"></span>
-              <strong id="voice-capture-title">Écoute en français</strong>
-              <p>Parlez sans limite de deux secondes. Arrêtez avec Confirmer ou Annuler.</p>
-            </div>
-            <button type="button" class="voice-close" aria-label="Annuler la dictée" (click)="cancelVoiceSession()">&times;</button>
-          </div>
-          <div class="voice-wave" aria-label="Niveau sonore du microphone">
-            @for (level of voiceLevels(); track $index) {
-              <i [style.transform]="'scaleY(' + level + ')'" aria-hidden="true"></i>
-            }
-          </div>
-          <div class="voice-transcript" aria-live="polite">
-            <span>{{ voiceSessionDraft() || 'Commencez à parler…' }}</span>
-            @if (voiceSessionInterim()) { <em>{{ voiceSessionInterim() }}</em> }
-          </div>
-          @if (voiceSessionError()) { <p class="voice-session-error">{{ voiceSessionError() }}</p> }
-          <div class="voice-capture-actions">
-            <button type="button" class="voice-cancel" (click)="cancelVoiceSession()">Annuler</button>
-            <button type="button" class="voice-confirm" (click)="confirmVoiceSession()">Confirmer le texte</button>
-          </div>
-        </section>
-      </div>
-    }
-
     <main class="app-main">
   <!-- Notifications -->
   @if (successMsg() && !showEventForm() && !showQualifyForm() && !showIncidentForm()) {
@@ -284,14 +255,14 @@
         <article class="dashboard-panel risk-panel">
           <h2>Risques Impactés</h2>
           <div class="risk-table-wrap">
-            <table class="risk-table mobile-card-table">
+            <table class="risk-table">
               <thead><tr><th>Inc. N°</th><th>Réf</th><th>Description</th></tr></thead>
               <tbody>
                 @for (risque of getRisquesList(); track risque.incidentId + '-' + risque.ref) {
                   <tr>
-                    <td data-label="Incident">#{{ risque.incidentId }}</td>
-                    <td data-label="Référence"><span class="risk-ref">{{ risque.ref || '—' }}</span></td>
-                    <td data-label="Description">{{ risque.desc || 'Aucune description' }}</td>
+                    <td>#{{ risque.incidentId }}</td>
+                    <td><span class="risk-ref">{{ risque.ref || '—' }}</span></td>
+                    <td>{{ risque.desc || 'Aucune description' }}</td>
                   </tr>
                 }
                 @if (getRisquesList().length === 0) {
@@ -341,7 +312,7 @@
       </div>
 
       <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
-        <table class="table-premium mobile-card-table">
+        <table class="table-premium">
           <thead>
             <tr>
               <th>Nom</th>
@@ -357,28 +328,28 @@
           <tbody>
             @for (event of getFilteredEvents(); track event.id) {
               <tr>
-                <td data-label="Nom"><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
-                <td data-label="Détecté le">{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
-                <td data-label="Détecté par">
+                <td><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
+                <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
                   <span class="badge badge-secondary">{{ event.detecteParSource }}</span>
                   <div class="qualified-by" style="font-size: 0.75rem;">par {{ event.declarePar || 'Inconnu' }}</div>
                 </td>
-                <td data-label="État">
+                <td>
                   <span class="badge" [class.badge-success]="event.etat === 'Clos'" [class.badge-warning]="event.etat === 'Ouvert'" [class.badge-info]="event.etat === 'En cours'">
                     {{ event.etat || 'Ouvert' }}
                   </span>
                 </td>
                 
-                <td data-label="Confidentialité">
+                <td>
                   <span class="badge" [class.badge-danger]="event.impactConfidentialite === 'Majeur' || event.impactConfidentialite === 'Critique'" [class.badge-success]="event.impactConfidentialite === 'Aucun'">{{ event.impactConfidentialite || '-' }}</span>
                   <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireConfidentialite">{{ event.commentaireConfidentialite || '' }}</div>
                 </td>
-                <td data-label="Intégrité">
+                <td>
                   <span class="badge" [class.badge-danger]="event.impactIntegrite === 'Majeur' || event.impactIntegrite === 'Critique'" [class.badge-success]="event.impactIntegrite === 'Aucun'">{{ event.impactIntegrite || '-' }}</span>
                   <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireIntegrite">{{ event.commentaireIntegrite || '' }}</div>
                 </td>
                 
-                <td data-label="Qualification">
+                <td>
                   <span class="badge" 
                     [class.badge-danger]="event.qualification === 'INCIDENT'"
                     [class.badge-success]="event.qualification === 'NON_INCIDENT'"
@@ -388,7 +359,7 @@
                   </span>
                 </td>
 
-                <td data-label="Actions" class="actions-cell">
+                <td class="actions-cell">
                   <div class="action-buttons">
                     @if (!apiService.isRssi()) {
                       <button
@@ -464,7 +435,7 @@
       </div>
 
       <div class="table-container">
-        <table class="table-premium mobile-card-table">
+        <table class="table-premium">
           <thead>
             <tr>
               <th>ID ÉVÉNEMENT</th>
@@ -481,21 +452,21 @@
           <tbody>
             @for (inc of getFilteredIncidents(); track inc.id) {
               <tr>
-                <td data-label="ID événement"><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
-                <td data-label="Description"><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
-                <td data-label="Nature"><span class="badge badge-info">{{ inc.evenement?.natureEvenement || 'Non spécifié' }}</span></td>
-                <td data-label="Détection">{{ inc.evenement?.dateHeureDetection ? (inc.evenement!.dateHeureDetection | date:'dd/MM/yyyy HH:mm') : 'Non spécifiée' }}</td>
-                <td data-label="État"><span class="badge" [class.badge-success]="inc.evenement?.etat === 'Clos'">{{ inc.evenement?.etat || 'Non spécifié' }}</span></td>
-                <td data-label="Indisponibilité">{{ getIncidentDowntimeDisplay(inc) }}</td>
-                <td data-label="Traitement">{{ inc.dureeTraitement || '-' }}</td>
-                <td data-label="Ouverture">
+                <td><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
+                <td><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
+                <td><span class="badge badge-info">{{ inc.evenement?.natureEvenement || 'Non spécifié' }}</span></td>
+                <td>{{ inc.evenement?.dateHeureDetection ? (inc.evenement!.dateHeureDetection | date:'dd/MM/yyyy HH:mm') : 'Non spécifiée' }}</td>
+                <td><span class="badge" [class.badge-success]="inc.evenement?.etat === 'Clos'">{{ inc.evenement?.etat || 'Non spécifié' }}</span></td>
+                <td>{{ getIncidentDowntimeDisplay(inc) }}</td>
+                <td>{{ inc.dureeTraitement || '-' }}</td>
+                <td>
                   @if (inc.mesureDDT) {
                     {{ inc.mesureDDT | date:'dd/MM/yyyy' }} {{ inc.heureAttenuation || '' }}
                   } @else {
                     -
                   }
                 </td>
-                <td data-label="Actions">
+                <td>
                   <div class="action-buttons">
                     <button class="btn btn-primary btn-icon" (click)="openEditIncident(inc)" title="Gérer le plan">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -552,7 +523,7 @@
       </div>
 
       <div class="table-container">
-        <table class="table-premium mobile-card-table">
+        <table class="table-premium">
           <thead>
             <tr>
               <th style="width: 200px;">HORODATAGE</th>
@@ -563,14 +534,14 @@
           <tbody>
             @for (log of getFilteredLogs(); track log.id) {
               <tr>
-                <td data-label="Horodatage" class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
-                <td data-label="Utilisateur">
+                <td class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+                <td>
                   <span class="badge badge-secondary" style="display:inline-flex; align-items:center; gap:0.3rem;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                     {{ log.username }}
                   </span>
                 </td>
-                <td data-label="Action" class="log-action">{{ log.action }}</td>
+                <td class="log-action">{{ log.action }}</td>
               </tr>
             } @empty {
               <tr>
@@ -602,25 +573,7 @@
         </div>
       </div>
 
-      <section class="assistant-layout" [class.history-collapsed]="!assistantHistoryOpen()">
-        <aside class="assistant-history-panel" [class.open]="assistantHistoryOpen()" aria-label="Historique des conversations">
-          <div class="assistant-history-head">
-            <strong>Historique</strong>
-            <button type="button" (click)="toggleAssistantHistory()" [attr.aria-label]="assistantHistoryOpen() ? 'Masquer l’historique' : 'Afficher l’historique'">
-              {{ assistantHistoryOpen() ? '‹' : '›' }}
-            </button>
-          </div>
-          <button type="button" class="assistant-new-chat" (click)="clearAssistantConversation()">+ Nouvelle conversation</button>
-          <div class="assistant-history-list">
-            @for (conversation of assistantConversations(); track conversation.id) {
-              <button type="button" class="assistant-history-item" [class.active]="activeAssistantConversationId() === conversation.id" (click)="selectAssistantConversation(conversation.id)">
-                <span>{{ conversation.title }}</span>
-                <small>{{ conversation.updatedAt | date:'dd/MM HH:mm' }}</small>
-                <i role="button" tabindex="0" aria-label="Supprimer la conversation" (click)="deleteAssistantConversation(conversation.id, $event)">&times;</i>
-              </button>
-            }
-          </div>
-        </aside>
+      <section class="assistant-layout">
         <section class="assistant-chat-card">
           <div class="assistant-messages" aria-live="polite">
             @for (message of assistantMessages(); track $index) {
@@ -647,7 +600,7 @@
                 <div class="assistant-proposal-actions">
                   <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">Non</button>
                   <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()" [disabled]="assistantAutofillActive() || assistantEventAutofillActive()">
-                    {{ (assistantAutofillActive() || assistantEventAutofillActive()) ? 'Remplissage en cours…' : (result.askToCreateEvent ? 'Oui, préparer la déclaration' : 'Oui, remplir et enregistrer') }}
+                    {{ (assistantAutofillActive() || assistantEventAutofillActive()) ? 'Remplissage en cours…' : (result.askToCreateEvent ? 'Oui, préparer la déclaration' : 'Oui, préparer la fiche') }}
                   </button>
                 </div>
               </div>
@@ -659,10 +612,7 @@
               <textarea name="assistantQuestion" [(ngModel)]="assistantQuestion" (keydown.enter)="onAssistantEnter($event)" rows="3" placeholder="Décrivez la situation ou posez une question. Entrée envoie le message, Maj+Entrée ajoute une ligne."></textarea>
               <button type="button" class="assistant-voice-button" [class.listening]="activeVoiceSearch() === 'assistant'" (click)="startSearchVoice('assistant')" title="Dicter la question"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
             </div>
-            @if (assistantLoading()) {
-              <button type="button" class="assistant-stop-button" (click)="cancelAssistantRequest()">Annuler</button>
-            }
-            <button type="submit" [disabled]="assistantLoading()">{{ assistantLoading() ? 'Analyse…' : 'Entrer' }}</button>
+            <button type="submit" [disabled]="assistantLoading()">{{ assistantLoading() ? '...' : 'Entrer' }}</button>
           </form>
         </section>
       </section>
@@ -961,7 +911,7 @@
           <!-- Table: Risques Impactés -->
           <div class="stat-card widget-scrollable">
             <h3 class="widget-title">Risques Impactés</h3>
-            <table class="table-premium mobile-card-table" style="width: 100%;">
+            <table class="table-premium" style="width: 100%;">
               <thead>
                 <tr>
                   <th>Inc. N°</th>
@@ -1029,7 +979,7 @@
       </div>
 
       <div class="table-container detector-events-container">
-        <table class="table-premium detector-events-table mobile-card-table">
+        <table class="table-premium detector-events-table">
           <thead>
             <tr>
               <th>Nom</th>
@@ -1046,28 +996,28 @@
           <tbody>
             @for (event of getFilteredEvents(); track event.id) {
               <tr>
-                <td data-label="Nom"><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
-                <td data-label="Détecté le">{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
-                <td data-label="Détecté par">
+                <td><strong>{{ event.libelleErreur || 'Sans nom' }}</strong></td>
+                <td>{{ event.dateHeureDetection | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
                   <span class="badge badge-secondary">{{ event.detecteParSource }}</span>
                   <div class="qualified-by" style="font-size: 0.75rem;">par {{ event.declarePar || 'Inconnu' }}</div>
                 </td>
-                <td data-label="État">
+                <td>
                   <span class="badge" [class.badge-success]="event.etat === 'Clos'" [class.badge-warning]="event.etat === 'Ouvert'" [class.badge-info]="event.etat === 'En cours'">
                     {{ event.etat || 'Ouvert' }}
                   </span>
                 </td>
                 
-                <td data-label="Confidentialité">
+                <td>
                   <span class="badge" [class.badge-danger]="event.impactConfidentialite === 'Majeur' || event.impactConfidentialite === 'Critique'" [class.badge-success]="event.impactConfidentialite === 'Aucun'">{{ event.impactConfidentialite || '-' }}</span>
                   <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireConfidentialite">{{ event.commentaireConfidentialite || '' }}</div>
                 </td>
-                <td data-label="Intégrité">
+                <td>
                   <span class="badge" [class.badge-danger]="event.impactIntegrite === 'Majeur' || event.impactIntegrite === 'Critique'" [class.badge-success]="event.impactIntegrite === 'Aucun'">{{ event.impactIntegrite || '-' }}</span>
                   <div class="qualified-by truncate-text" style="font-size: 0.75rem; max-width: 120px;" [title]="event.commentaireIntegrite">{{ event.commentaireIntegrite || '' }}</div>
                 </td>
                 
-                <td data-label="Qualification">
+                <td>
                   <span class="badge" 
                     [class.badge-danger]="event.qualification === 'INCIDENT'"
                     [class.badge-success]="event.qualification === 'NON_INCIDENT'"
@@ -1077,7 +1027,7 @@
                   </span>
                 </td>
 
-                <td data-label="RSSI">
+                <td>
                   @if (event.envoyeAuRssi) {
                     <span class="badge badge-success">Envoyé</span>
                   } @else {
@@ -1085,7 +1035,7 @@
                   }
                 </td>
                 
-                <td data-label="Actions" class="detector-actions-cell">
+                <td class="detector-actions-cell">
                   <div class="action-buttons">
                     @if (!apiService.isRssi()) {
                       <button
@@ -1145,7 +1095,7 @@
       </div>
 
       <div class="table-container">
-        <table class="table-premium mobile-card-table">
+        <table class="table-premium">
           <thead>
             <tr>
               <th>ID ÉVÉNEMENT</th>
@@ -1162,21 +1112,21 @@
           <tbody>
             @for (inc of getFilteredIncidents(); track inc.id) {
               <tr>
-                <td data-label="ID événement"><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
-                <td data-label="Description"><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
-                <td data-label="Nature"><span class="badge badge-info">{{ inc.evenement?.natureEvenement || 'Non spécifié' }}</span></td>
-                <td data-label="Détection">{{ inc.evenement?.dateHeureDetection ? (inc.evenement!.dateHeureDetection | date:'dd/MM/yyyy HH:mm') : 'Non spécifiée' }}</td>
-                <td data-label="État"><span class="badge" [class.badge-success]="inc.evenement?.etat === 'Clos'">{{ inc.evenement?.etat || 'Non spécifié' }}</span></td>
-                <td data-label="Indisponibilité">{{ inc.dureeIndisponibilite || '-' }}</td>
-                <td data-label="Traitement">{{ inc.dureeTraitement || '-' }}</td>
-                <td data-label="Ouverture">
+                <td><strong>#EV-{{ inc.evenement?.id }}</strong><br><small class="text-muted">Inc N°{{ inc.id }}</small></td>
+                <td><span class="action-snippet">{{ inc.evenement?.libelleErreur || 'Non spécifié' }}</span></td>
+                <td><span class="badge badge-info">{{ inc.evenement?.natureEvenement || 'Non spécifié' }}</span></td>
+                <td>{{ inc.evenement?.dateHeureDetection ? (inc.evenement!.dateHeureDetection | date:'dd/MM/yyyy HH:mm') : 'Non spécifiée' }}</td>
+                <td><span class="badge" [class.badge-success]="inc.evenement?.etat === 'Clos'">{{ inc.evenement?.etat || 'Non spécifié' }}</span></td>
+                <td>{{ inc.dureeIndisponibilite || '-' }}</td>
+                <td>{{ inc.dureeTraitement || '-' }}</td>
+                <td>
                   @if (inc.mesureDDT) {
                     {{ inc.mesureDDT | date:'dd/MM/yyyy' }} {{ inc.heureAttenuation || '' }}
                   } @else {
                     -
                   }
                 </td>
-                <td data-label="Actions">
+                <td>
                   <div class="action-buttons">
                     <button class="btn btn-primary btn-icon" (click)="openEditIncident(inc)" title="Gérer le plan">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -1223,7 +1173,7 @@
       </div>
 
       <div class="table-container">
-        <table class="table-premium mobile-card-table">
+        <table class="table-premium">
           <thead>
             <tr>
               <th style="width: 200px;">HORODATAGE</th>
@@ -1234,14 +1184,14 @@
           <tbody>
             @for (log of getFilteredLogs(); track log.id) {
               <tr>
-                <td data-label="Horodatage" class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
-                <td data-label="Utilisateur">
+                <td class="log-time">{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+                <td>
                   <span class="badge badge-secondary" style="display:inline-flex; align-items:center; gap:0.3rem;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                     {{ log.username }}
                   </span>
                 </td>
-                <td data-label="Action" class="log-action">{{ log.action }}</td>
+                <td class="log-action">{{ log.action }}</td>
               </tr>
             } @empty {
               <tr>
