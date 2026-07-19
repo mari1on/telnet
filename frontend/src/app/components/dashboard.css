@@ -6492,3 +6492,340 @@ label {
   .detector-settings-back-icon { width:44px !important; min-width:44px !important; }
   .detector-settings-save { width:100% !important; }
 }
+
+
+/* =========================================================
+   TELNET V23 — actions compactes Android, filtres desktop
+   ========================================================= */
+.detector-web-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+.detector-web-filters select {
+  min-width: 150px;
+  min-height: 40px;
+  padding: 0 34px 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #21364d;
+  font: inherit;
+}
+.detector-web-filters .result-count { margin-left: auto; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  /* Les filtres restent disponibles sur ordinateur et disparaissent seulement sur Android. */
+  .dashboard-shell .list-toolbar select,
+  .dashboard-shell .compact-toolbar select,
+  .dashboard-shell .list-toolbar .result-count,
+  .dashboard-shell .compact-toolbar .result-count,
+  .detector-web-filters {
+    display: none !important;
+  }
+
+  /* Bouton + et recherche sur une seule ligne, RSSI et Détecteur. */
+  .events-tab-view {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    column-gap: 7px !important;
+    row-gap: 10px !important;
+    align-items: start !important;
+  }
+  .events-tab-view > .tab-header {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+  }
+  .events-tab-view > .tab-header > div { display: none !important; }
+  .events-tab-view > .tab-header .mobile-add-event-button {
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    border-radius: 11px !important;
+  }
+  .events-tab-view > .tab-header .mobile-add-event-button span { display: none !important; }
+  .events-tab-view > .tab-header .mobile-add-event-button svg {
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important;
+  }
+  .events-tab-view > .list-toolbar,
+  .events-tab-view > .detector-list-toolbar {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+  }
+  .events-tab-view > :not(.tab-header):not(.list-toolbar):not(.detector-list-toolbar) {
+    grid-column: 1 / -1 !important;
+  }
+
+  .dashboard-shell .list-toolbar,
+  .dashboard-shell .compact-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 38px !important;
+    gap: 6px !important;
+    align-items: center !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .dashboard-shell .list-toolbar .search-field,
+  .dashboard-shell .compact-toolbar .search-field {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+  }
+  .dashboard-shell .list-toolbar .filter-reset,
+  .dashboard-shell .compact-toolbar .filter-reset {
+    grid-column: 2 !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    font-size: 1.05rem !important;
+  }
+
+  .detector-list-toolbar {
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .detector-search-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 38px !important;
+    gap: 6px !important;
+  }
+  .detector-search-field { height: 40px !important; }
+  .detector-reset-button { width: 38px !important; min-width: 38px !important; height: 38px !important; }
+}
+
+@media (min-width: 701px) {
+  .mobile-add-event-button span { display: inline !important; }
+  .detector-web-filters { display: flex !important; }
+}
+
+
+/* =========================================================
+   TELNET V24 — barre de recherche unifiée web + mobile
+   ========================================================= */
+@media (min-width: 701px) {
+  .rssi-events-tab .events-unified-toolbar {
+    display: grid !important;
+    grid-template-columns: auto minmax(260px, 1fr) minmax(130px, 160px) minmax(130px, 160px) 42px auto !important;
+    align-items: center !important;
+    gap: 9px !important;
+    padding: 12px !important;
+    border: 1px solid var(--line-soft) !important;
+    border-radius: 16px !important;
+    background: color-mix(in srgb, var(--surface) 94%, transparent) !important;
+    box-shadow: 0 10px 28px rgba(0,0,0,.10) !important;
+  }
+  .rssi-events-tab .events-unified-toolbar .mobile-add-event-button {
+    width: auto !important;
+    min-width: 174px !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border-radius: 11px !important;
+  }
+  .rssi-events-tab .events-unified-toolbar .mobile-add-event-button svg { margin: 0 !important; }
+
+  .detector-unified-toolbar {
+    display: grid !important;
+    grid-template-columns: auto minmax(240px, 1fr) 42px repeat(3, minmax(125px, 155px)) auto !important;
+    align-items: center !important;
+    gap: 9px !important;
+    padding: 12px !important;
+    border: 1px solid #d9e4ef !important;
+    border-radius: 16px !important;
+    background: #fff !important;
+    box-shadow: 0 10px 28px rgba(32,72,111,.08) !important;
+  }
+  .detector-unified-toolbar > .mobile-add-event-button {
+    min-width: 174px !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border-radius: 11px !important;
+  }
+  .detector-unified-toolbar > .mobile-add-event-button svg { margin: 0 !important; }
+  .detector-unified-toolbar .detector-search-row,
+  .detector-unified-toolbar .detector-web-filters { display: contents !important; }
+  .detector-unified-toolbar .detector-search-field { grid-column: auto !important; }
+  .detector-unified-toolbar .detector-reset-button { width: 42px !important; min-width: 42px !important; height: 40px !important; padding: 0 !important; }
+  .detector-unified-toolbar .detector-web-filters select { min-width: 0 !important; width: 100% !important; margin: 0 !important; }
+  .detector-unified-toolbar .result-count { margin-left: 0 !important; }
+}
+
+@media (max-width: 700px) {
+  .events-tab-view {
+    display: block !important;
+  }
+  .events-tab-view > .events-unified-toolbar,
+  .events-tab-view > .detector-unified-toolbar {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) 38px !important;
+    gap: 6px !important;
+    align-items: center !important;
+    margin: 0 0 10px !important;
+    padding: 7px !important;
+    border: 1px solid #dbe3ec !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+    box-shadow: 0 5px 16px rgba(15,23,42,.06) !important;
+  }
+  .dashboard-shell .events-unified-toolbar {
+    border-color: var(--line-soft) !important;
+    background: var(--surface) !important;
+  }
+  .events-unified-toolbar > .mobile-add-event-button,
+  .detector-unified-toolbar > .mobile-add-event-button {
+    grid-column: 1 !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    border-radius: 10px !important;
+  }
+  .events-unified-toolbar > .mobile-add-event-button span,
+  .detector-unified-toolbar > .mobile-add-event-button span { display: none !important; }
+  .events-unified-toolbar > .mobile-add-event-button svg,
+  .detector-unified-toolbar > .mobile-add-event-button svg { width: 20px !important; height: 20px !important; margin: 0 !important; }
+
+  .events-unified-toolbar > .search-field { grid-column: 2 !important; min-width: 0 !important; width: 100% !important; }
+  .events-unified-toolbar > .filter-reset { grid-column: 3 !important; }
+  .events-unified-toolbar > select,
+  .events-unified-toolbar > .result-count { display: none !important; }
+
+  .detector-unified-toolbar .detector-search-row { display: contents !important; }
+  .detector-unified-toolbar .detector-search-field { grid-column: 2 !important; min-width: 0 !important; width: 100% !important; }
+  .detector-unified-toolbar .detector-reset-button { grid-column: 3 !important; width: 38px !important; min-width: 38px !important; height: 38px !important; }
+  .detector-unified-toolbar .detector-web-filters { display: none !important; }
+}
+
+/* =========================================================
+   TELNET V25 — recherche mobile RSSI compacte et dictée simple
+   ========================================================= */
+@media (max-width: 700px) {
+  .rssi-events-tab .events-unified-toolbar {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px !important;
+    margin: 0 0 12px !important;
+    border: 1px solid var(--line-soft) !important;
+    border-radius: 14px !important;
+    background: var(--surface) !important;
+    box-shadow: 0 7px 20px rgba(0, 0, 0, .10) !important;
+  }
+
+  .rssi-events-tab .events-unified-toolbar > .mobile-add-event-button {
+    grid-column: 1 !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    margin: 0 !important;
+    border-radius: 11px !important;
+  }
+
+  .rssi-events-tab .events-unified-toolbar > .search-field {
+    grid-column: 2 !important;
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr) 36px !important;
+    align-items: center !important;
+    gap: 7px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 4px 0 11px !important;
+    overflow: hidden !important;
+    border-radius: 11px !important;
+  }
+
+  .rssi-events-tab .events-unified-toolbar > .search-field > svg {
+    position: static !important;
+    width: 17px !important;
+    min-width: 17px !important;
+    height: 17px !important;
+    margin: 0 !important;
+  }
+
+  .rssi-events-tab .events-unified-toolbar > .search-field input {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    opacity: 1 !important;
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    background: transparent !important;
+  }
+
+  .rssi-events-tab .events-unified-toolbar > .search-field .voice-search-button {
+    position: static !important;
+    display: grid !important;
+    place-items: center !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+  }
+
+  .rssi-events-tab .events-unified-toolbar > .filter-reset,
+  .rssi-events-tab .events-unified-toolbar > select,
+  .rssi-events-tab .events-unified-toolbar > .result-count {
+    display: none !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .rssi-events-tab .events-unified-toolbar {
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 6px !important;
+    padding: 6px !important;
+  }
+  .rssi-events-tab .events-unified-toolbar > .mobile-add-event-button {
+    width: 42px !important;
+    min-width: 42px !important;
+  }
+  .rssi-events-tab .events-unified-toolbar > .search-field {
+    grid-template-columns: 16px minmax(0, 1fr) 34px !important;
+    gap: 5px !important;
+    padding-left: 9px !important;
+  }
+  .rssi-events-tab .events-unified-toolbar > .search-field input {
+    font-size: 15px !important;
+  }
+}

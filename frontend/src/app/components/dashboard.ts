@@ -241,6 +241,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private assistantRequestSequence = 0;
   private assistantIncidentAutoSavePending = false;
   private assistantElapsedTimer: number | null = null;
+  private assistantHardTimeout: number | null = null;
   private assistantAutoSaveTimer: number | null = null;
   private voiceShouldRestart = false;
   private voiceCommittedText = '';
@@ -1223,6 +1224,24 @@ Détail technique : ${detail}`;
     this.assistantLoading.set(true);
     this.startAssistantElapsedTimer();
     const requestSequence = ++this.assistantRequestSequence;
+    this.clearAssistantHardTimeout();
+    this.assistantHardTimeout = window.setTimeout(() => {
+      if (requestSequence !== this.assistantRequestSequence || !this.assistantLoading()) return;
+      this.assistantRequestSubscription?.unsubscribe();
+      this.assistantRequestSubscription = null;
+      const fallback = this.buildImmediateAssistantFallback(question);
+      this.assistantResult.set(fallback);
+      this.assistantMessages.update(messages => [
+        ...messages,
+        { role: 'assistant', text: fallback.answer }
+      ]);
+      this.assistantQuestion = '';
+      this.assistantLoading.set(false);
+      this.stopAssistantElapsedTimer();
+      this.clearAssistantHardTimeout();
+      this.persistActiveAssistantConversation();
+      if (this.assistantAutoSpeak()) this.speakAssistantAnswer(fallback.answer);
+    }, 20000);
 
     this.assistantRequestSubscription = this.apiService.runLocalRssiAssistant({
       eventId: this.assistantSelectedEventId ?? (this.shouldReuseAssistantEvent(question) ? this.assistantInferredEventId : null),
@@ -1231,41 +1250,226 @@ Détail technique : ${detail}`;
     }).subscribe({
       next: (result: AssistantResponse) => {
         if (requestSequence !== this.assistantRequestSequence) return;
-        this.assistantResult.set(result);
-        if (result.selectedEventId != null) {
-          this.assistantInferredEventId = result.selectedEventId;
+        const finalResult = this.shouldReplaceWeakAssistantAnswer(question, result)
+          ? this.buildImmediateAssistantFallback(question)
+          : result;
+        this.assistantResult.set(finalResult);
+        if (finalResult.selectedEventId != null) {
+          this.assistantInferredEventId = finalResult.selectedEventId;
         } else if (!this.shouldReuseAssistantEvent(question)) {
           this.assistantInferredEventId = null;
         }
         this.assistantMessages.update(messages => [
           ...messages,
-          { role: 'assistant', text: result.answer }
+          { role: 'assistant', text: finalResult.answer }
         ]);
         this.assistantQuestion = '';
         this.assistantLoading.set(false);
         this.stopAssistantElapsedTimer();
+        this.clearAssistantHardTimeout();
         this.assistantRequestSubscription = null;
         this.persistActiveAssistantConversation();
-        if (this.assistantAutoSpeak()) this.speakAssistantAnswer(result.answer);
+        if (this.assistantAutoSpeak()) this.speakAssistantAnswer(finalResult.answer);
       },
-      error: (err: any) => {
+      error: (_err: any) => {
         if (requestSequence !== this.assistantRequestSequence) return;
-        const message = err?.error?.message
-          || 'L’assistant ne répond pas pour le moment. Réessayez ou annulez la demande.';
+        const fallback = this.buildImmediateAssistantFallback(question);
+        this.assistantResult.set(fallback);
         this.assistantMessages.update(messages => [
           ...messages,
-          { role: 'assistant', text: message }
+          { role: 'assistant', text: fallback.answer }
         ]);
+        this.assistantQuestion = '';
         this.assistantLoading.set(false);
         this.stopAssistantElapsedTimer();
+        this.clearAssistantHardTimeout();
         this.assistantRequestSubscription = null;
         this.persistActiveAssistantConversation();
+        if (this.assistantAutoSpeak()) this.speakAssistantAnswer(fallback.answer);
       }
     });
   }
 
+  private buildImmediateAssistantFallback(question: string): AssistantResponse {
+    const normalized = this.normalizeSearch(question);
+    const has = (...terms: string[]) => terms.some(term => normalized.includes(this.normalizeSearch(term)));
+    const selectedEventId = this.shouldReuseAssistantEvent(question)
+      ? (this.assistantInferredEventId ?? this.assistantSelectedEventId ?? null)
+      : null;
+    let answer = '';
+    let actions: string[] = [];
+    let qualificationDraft: AssistantQualificationDraft = {
+      impactConfidentialite: 'Mineur',
+      impactIntegrite: 'Majeur',
+      impactDisponibilite: 'Majeur',
+      qualification: 'NON_INCIDENT'
+    };
+
+    if (has('bonjour', 'salut', 'hello', 'hi', 'coucou')) {
+      answer = 'Bonjour ! Comment puis-je vous aider ? Décrivez la situation avec vos propres mots ou posez directement votre question sur TELNET.';
+    } else if (has('comment ca va', 'vous allez bien', 'tu vas bien', 'ca va')) {
+      answer = 'Je vais bien, merci. Et vous ? Je peux analyser une situation technique, expliquer les risques ou vous guider dans TELNET.';
+    } else if (has('panne serveur', 'serveur en panne', 'serveur indisponible', 'probleme serveur')) {
+      actions = [
+        'Identifier les services et les utilisateurs touchés.',
+        'Consulter la supervision, les journaux et les changements récents.',
+        'Vérifier les ressources, le matériel, le réseau et les dépendances.',
+        'Activer la redondance ou la procédure de secours si elle existe.',
+        'Restaurer progressivement le service et surveiller les erreurs résiduelles.'
+      ];
+      qualificationDraft = {
+        impactConfidentialite: 'Mineur', impactIntegrite: 'Majeur', impactDisponibilite: 'Critique',
+        commentaireDisponibilite: 'Le service serveur peut être totalement indisponible.',
+        qualification: 'INCIDENT'
+      };
+      answer = 'Une panne serveur peut venir d’une saturation, d’une panne matérielle, d’une erreur de configuration, du réseau ou d’une dépendance indisponible. Vérifiez d’abord le périmètre, la supervision et les changements récents. Une disponibilité Critique suffit à classer la situation comme incident.';
+    } else if (has('incendie', 'alarme incendie', 'fumee')) {
+      actions = [
+        'Mettre les personnes en sécurité et appliquer la procédure d’évacuation.',
+        'Alerter la sécurité du site et les secours selon les consignes internes.',
+        'Couper ou isoler les équipements uniquement si cela peut être fait sans danger.',
+        'Documenter la zone, les équipements touchés et l’interruption de service.'
+      ];
+      qualificationDraft = {
+        impactConfidentialite: 'Mineur', impactIntegrite: 'Majeur', impactDisponibilite: 'Critique',
+        commentaireDisponibilite: 'L’arrêt des équipements peut interrompre les services.',
+        qualification: 'INCIDENT'
+      };
+      answer = 'Une alarme ou un départ d’incendie est d’abord une urgence humaine et physique. Sécurisez les personnes, appliquez les procédures du site et alertez les services compétents. Dans TELNET, consignez ensuite la zone et les équipements touchés; une interruption critique de disponibilité conduit à un incident.';
+    } else if (has('logiciel malveillant', 'malware', 'antivirus', 'virus', 'ransomware', 'quarantaine', 'poste isole')) {
+      actions = [
+        'Maintenir le poste isolé du réseau et préserver les preuves.',
+        'Conserver les journaux antivirus, système, proxy et authentification.',
+        'Identifier le fichier, le processus, le compte et le vecteur d’entrée.',
+        'Rechercher les mêmes indicateurs sur les autres postes et serveurs.',
+        'Éradiquer la menace ou réinstaller depuis une image saine.',
+        'Changer les secrets potentiellement exposés puis surveiller la reconnexion.'
+      ];
+      qualificationDraft = {
+        impactConfidentialite: 'Critique',
+        impactIntegrite: 'Critique',
+        impactDisponibilite: 'Majeur',
+        commentaireConfidentialite: 'Une exfiltration de données ou un vol d’identifiants doit être écarté.',
+        commentaireIntegrite: 'Des fichiers ou configurations peuvent avoir été altérés.',
+        commentaireDisponibilite: 'Le poste est isolé et son utilisation normale est interrompue.',
+        qualification: 'INCIDENT'
+      };
+      answer = 'La situation correspond à une suspicion de logiciel malveillant sur un poste utilisateur. L’isolement réseau et la conservation des journaux sont de bonnes premières mesures. Il faut maintenant identifier le vecteur d’entrée, vérifier la propagation, contrôler les comptes et fichiers accessibles, éradiquer la menace puis restaurer le poste depuis une source saine. La proposition CID est Confidentialité Critique, Intégrité Critique et Disponibilité Majeur : TELNET la classe donc comme incident, sous réserve de validation du RSSI.';
+    } else if (has('authentification', 'connexion', 'mot de passe', 'ssh', 'force brute')) {
+      actions = [
+        'Identifier les comptes et adresses sources concernés.',
+        'Analyser les journaux de connexion et les tentatives échouées.',
+        'Bloquer les sources suspectes et protéger les comptes ciblés.',
+        'Vérifier le MFA, les mots de passe et les règles de verrouillage.'
+      ];
+      qualificationDraft = {
+        impactConfidentialite: 'Critique', impactIntegrite: 'Critique', impactDisponibilite: 'Majeur',
+        qualification: 'INCIDENT'
+      };
+      answer = 'Une anomalie d’authentification peut être une erreur de configuration, un compte bloqué ou une tentative d’accès non autorisée. Analysez les comptes, les adresses sources et les journaux, puis bloquez les accès suspects. Une atteinte Critique à la confidentialité ou à l’intégrité la classe comme incident.';
+    } else if (has('action', 'que faire', 'quoi faire', 'solution', 'resoudre')) {
+      actions = [
+        'Confirmer le symptôme, le périmètre et les actifs touchés.',
+        'Conserver les journaux et appliquer une mesure de confinement réversible.',
+        'Vérifier les changements récents, les ressources et les dépendances.',
+        'Rétablir le service de façon contrôlée puis surveiller le résultat.',
+        'Documenter les trois impacts CID et les actions réalisées.'
+      ];
+      answer = 'Voici une démarche prudente : ' + actions.map((action, index) => `${index + 1}) ${action}`).join(' ');
+    } else {
+      answer = 'Je n’ai pas obtenu la réponse du modèle local à temps, mais je peux tout de même vous aider. Décrivez le symptôme, l’actif ou le service touché et l’impact observé; commencez par conserver les traces, vérifier les changements récents, contenir le problème de façon réversible et évaluer les trois impacts CID.';
+    }
+
+    const isIncidentProposal = qualificationDraft.qualification === 'INCIDENT';
+    const recognizedNewSituation = selectedEventId === null && (
+      has('logiciel malveillant', 'malware', 'antivirus', 'virus', 'ransomware', 'quarantaine', 'poste isole')
+      || has('panne serveur', 'serveur en panne', 'serveur indisponible', 'probleme serveur')
+      || has('incendie', 'alarme incendie', 'fumee')
+      || has('authentification', 'ssh', 'force brute')
+    );
+    const askToFillIncident = selectedEventId !== null && isIncidentProposal;
+    const askToCreateEvent = recognizedNewSituation;
+    const eventDraft: AssistantEventDraft = askToCreateEvent ? {
+      libelleErreur: has('logiciel malveillant', 'malware', 'antivirus', 'virus', 'ransomware', 'quarantaine')
+        ? 'Détection de logiciel malveillant'
+        : has('panne serveur', 'serveur en panne', 'serveur indisponible', 'probleme serveur')
+          ? 'Indisponibilité du serveur'
+          : has('incendie', 'alarme incendie', 'fumee')
+            ? 'Alarme incendie'
+            : 'Anomalie d’authentification',
+      descriptionDetaillee: question,
+      detecteParSource: 'AUTRE',
+      natureEvenement: has('logiciel malveillant', 'malware', 'antivirus', 'virus', 'ransomware', 'quarantaine')
+        ? 'Alerte securite'
+        : 'Indisponibilite',
+      serviceOsAppli: has('finance') ? 'Service Finance' : 'À confirmer',
+      equipementHardware: has('poste', 'pc') ? 'Poste utilisateur' : 'À confirmer',
+      causesPossibles: 'Cause à confirmer à partir des journaux, des processus, des connexions réseau et des changements récents.',
+      etat: 'Ouvert',
+      typeActif: has('poste', 'pc') ? 'Poste de travail' : 'Système d’information',
+      actifAffecte: has('finance') ? 'Poste de travail – Service Finance' : 'À confirmer'
+    } : {};
+    return {
+      answer: askToCreateEvent
+        ? `${answer} Je peux préparer la déclaration, puis la qualification CID et la fiche d’incident.`
+        : answer,
+      confirmationPrompt: askToFillIncident
+        ? 'Voulez-vous que je prépare la qualification et la fiche d’incident ?'
+        : askToCreateEvent
+          ? 'Voulez-vous que je crée la déclaration à partir de cette situation, puis que je prépare la qualification et la fiche d’incident ?'
+          : '',
+      askToFillIncident,
+      askToCreateEvent,
+      eventDraft,
+      selectedEventId,
+      incidentDraft: {
+        typesIncident: ['Incident de sécurité'],
+        niveauImpact: qualificationDraft.impactDisponibilite === 'Critique' ? 'NIVEAU_3' : 'NIVEAU_2',
+        mesureAction: actions[0] || 'Confirmer le périmètre et appliquer une mesure de confinement réversible.',
+        mesureEtat: 'En cours',
+        traitementAction: actions.slice(1).join(' ') || 'Analyser la cause, rétablir le service et surveiller le retour à la normale.',
+        traitementEtat: 'En cours',
+        preconisation: 'Documenter les preuves, les impacts CID et les mesures préventives.',
+        actionCorrective: 'Corriger la cause racine après validation technique.',
+        risques: [{ reference: '', description: 'Dégradation ou interruption du service concerné.' }]
+      },
+      qualificationDraft,
+      similarFound: false,
+      matches: [],
+      actions,
+      source: 'Moteur de réponse immédiate TELNET',
+      engine: 'frontend-fallback'
+    };
+  }
+
+  private shouldReplaceWeakAssistantAnswer(question: string, result: AssistantResponse): boolean {
+    const q = this.normalizeSearch(question);
+    const answer = this.normalizeSearch(result?.answer || '');
+    const technicalTerms = [
+      'malware', 'logiciel malveillant', 'antivirus', 'virus', 'ransomware', 'quarantaine',
+      'panne serveur', 'serveur indisponible', 'incendie', 'authentification', 'ssh', 'force brute'
+    ];
+    const isTechnical = technicalTerms.some(term => q.includes(this.normalizeSearch(term)));
+    const weakPhrases = [
+      'bonjour comment puis je vous aider',
+      'decrivez la situation',
+      'je peux vous guider',
+      'reformulez la question',
+      'je n ai pas obtenu la reponse',
+      'je n ai pas compris'
+    ];
+    const isWeak = weakPhrases.some(phrase => answer.includes(this.normalizeSearch(phrase)));
+    const malwareQuestion = ['logiciel malveillant', 'malware', 'antivirus', 'virus', 'ransomware', 'quarantaine']
+      .some(term => q.includes(this.normalizeSearch(term)));
+    const unrelatedAuthentication = malwareQuestion && answer.includes(this.normalizeSearch('Authentication Failure'));
+    const previousAssistant = [...this.assistantMessages()].reverse().find(message => message.role === 'assistant')?.text || '';
+    const isRepeated = this.normalizeSearch(previousAssistant) === answer && q.split(/\s+/).filter(Boolean).length > 3;
+    return Boolean(isTechnical && (isWeak || isRepeated || unrelatedAuthentication));
+  }
+
   cancelAssistantRequest(addMessage = true): void {
     this.assistantRequestSequence += 1;
+    this.clearAssistantHardTimeout();
     if (this.assistantRequestSubscription) {
       this.assistantRequestSubscription.unsubscribe();
       this.assistantRequestSubscription = null;
@@ -1280,6 +1484,13 @@ Détail technique : ${detail}`;
         }]);
         this.persistActiveAssistantConversation();
       }
+    }
+  }
+
+  private clearAssistantHardTimeout(): void {
+    if (this.assistantHardTimeout !== null) {
+      window.clearTimeout(this.assistantHardTimeout);
+      this.assistantHardTimeout = null;
     }
   }
 
@@ -2531,6 +2742,11 @@ Détail technique : ${detail}`;
       return;
     }
 
+    if (target !== 'assistant') {
+      this.startSimpleFrenchVoiceSearch(target);
+      return;
+    }
+
     this.stopVoiceSession();
     this.voiceSessionTarget.set(target);
     this.voiceSessionVisible.set(true);
@@ -2542,6 +2758,62 @@ Détail technique : ${detail}`;
     this.activeVoiceSearch.set(target);
     this.startVoiceLevelMonitor();
     this.startPersistentRecognition();
+  }
+
+  private startSimpleFrenchVoiceSearch(target: 'events' | 'incidents' | 'logs'): void {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    if (this.activeRecognition) {
+      try { this.activeRecognition.abort(); } catch { /* aucune action */ }
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
+    recognition.continuous = false;
+    this.activeRecognition = recognition;
+    this.activeVoiceSearch.set(target);
+
+    recognition.onresult = (event: any) => this.ngZone.run(() => {
+      const candidates = Array.from(event.results?.[0] || [])
+        .map((item: any) => String(item?.transcript || '').trim())
+        .filter(Boolean);
+      const rawText = this.selectBestVoiceCandidate(target, candidates);
+      const text = this.cleanVoiceSearchText(rawText, target);
+      if (target === 'events') {
+        this.eventStateFilter = 'ALL';
+        this.eventQualificationFilter = 'ALL';
+        this.eventRssiFilter = 'ALL';
+        this.eventSearch = text;
+      } else if (target === 'incidents') {
+        this.incidentStateFilter = 'ALL';
+        this.incidentSearch = text;
+      } else {
+        this.logSearch = text;
+      }
+      const count = this.countVoiceMatches(target, text);
+      this.successMsg.set(`Recherche vocale appliquée : « ${rawText} » — ${count} résultat(s).`);
+      this.cdr.detectChanges();
+    });
+    recognition.onerror = (event: any) => this.ngZone.run(() => {
+      const error = String(event?.error || '');
+      if (error !== 'no-speech' && error !== 'aborted') {
+        this.errorMsg.set(error === 'not-allowed'
+          ? 'Autorisez le microphone dans les paramètres du navigateur.'
+          : 'La recherche vocale a été interrompue. Réessayez.');
+      }
+    });
+    recognition.onend = () => this.ngZone.run(() => {
+      this.activeRecognition = null;
+      this.activeVoiceSearch.set(null);
+      this.cdr.detectChanges();
+    });
+    try {
+      recognition.start();
+    } catch {
+      this.activeRecognition = null;
+      this.activeVoiceSearch.set(null);
+    }
   }
 
   confirmVoiceSession(): void {

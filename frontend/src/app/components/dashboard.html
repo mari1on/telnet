@@ -80,7 +80,7 @@
       </aside>
     }
 
-    @if (voiceSessionVisible()) {
+    @if (voiceSessionVisible() && voiceSessionTarget() === 'assistant') {
       <div class="voice-capture-backdrop" role="dialog" aria-modal="true" aria-labelledby="voice-capture-title">
         <section class="voice-capture-panel">
           <div class="voice-capture-head">
@@ -307,18 +307,12 @@
 
   <!-- TAB 1: EVENTS -->
   @if (activeTab() === 'events') {
-    <div class="tab-view">
-      <div class="tab-header d-flex justify-between align-center">
-        <div>
-
-        </div>
-        <button class="btn btn-primary" (click)="openCreateEvent()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>Déclarer un problème</span>
-          </button>
-        </div>
-
-      <div class="list-toolbar" aria-label="Recherche et filtres des événements">
+    <div class="tab-view events-tab-view rssi-events-tab">
+      <div class="list-toolbar events-unified-toolbar" aria-label="Déclaration, recherche et filtres des événements">
+        <button class="btn btn-primary mobile-add-event-button" (click)="openCreateEvent()" title="Déclarer un problème" aria-label="Déclarer un problème">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Déclarer un problème</span>
+        </button>
         <label class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
           <input type="search" [(ngModel)]="eventSearch" placeholder="Rechercher par nom, source, ticket, service..." />
@@ -459,7 +453,7 @@
           <option value="Clôturé">Clôturé</option>
           <option value="Suspendu">Suspendu</option>
         </select>
-        <button type="button" class="filter-reset text-reset" (click)="resetIncidentFilters()">Réinitialiser</button>
+        <button type="button" class="filter-reset icon-reset" (click)="resetIncidentFilters()" title="Réinitialiser" aria-label="Réinitialiser">↺</button>
         <span class="result-count">{{ getFilteredIncidents().length }} résultat(s)</span>
       </div>
 
@@ -649,13 +643,13 @@
             @if (result.askToFillIncident || result.askToCreateEvent) {
               <div class="assistant-fill-request assistant-fill-request-compact">
                 <div>
-                  <strong>{{ result.askToCreateEvent ? 'Préparer une nouvelle déclaration' : 'Préparer la qualification et la fiche d’incident' }}</strong>
-                  <p>{{ result.confirmationPrompt || (result.askToCreateEvent ? 'Voulez-vous que je prépare une nouvelle déclaration à partir de cette situation ?' : 'Voulez-vous que je propose les impacts CID puis que je remplisse progressivement la fiche d’incident ?') }}</p>
+                  <strong>{{ result.askToCreateEvent && result.qualificationDraft?.qualification === 'INCIDENT' ? 'Créer l’événement et préparer l’incident' : (result.askToCreateEvent ? 'Préparer une nouvelle déclaration' : 'Préparer la qualification et la fiche d’incident') }}</strong>
+                  <p>{{ result.confirmationPrompt || (result.askToCreateEvent ? 'Voulez-vous que je crée la déclaration à partir de cette situation puis que je prépare la qualification et la fiche d’incident ?' : 'Voulez-vous que je propose les impacts CID puis que je remplisse progressivement la fiche d’incident ?') }}</p>
                 </div>
                 <div class="assistant-proposal-actions">
                   <button type="button" class="assistant-cancel-button" (click)="cancelAssistantProposal()">Non</button>
                   <button type="button" class="assistant-confirm-button" (click)="applyAssistantActions()" [disabled]="assistantAutofillActive() || assistantEventAutofillActive()">
-                    {{ (assistantAutofillActive() || assistantEventAutofillActive()) ? 'Remplissage en cours…' : (result.askToCreateEvent ? 'Oui, préparer la déclaration' : 'Oui, remplir et enregistrer') }}
+                    {{ (assistantAutofillActive() || assistantEventAutofillActive()) ? 'Remplissage en cours…' : (result.askToCreateEvent && result.qualificationDraft?.qualification === 'INCIDENT' ? 'Oui, créer et préparer la fiche' : (result.askToCreateEvent ? 'Oui, préparer la déclaration' : 'Oui, remplir et enregistrer')) }}
                   </button>
                 </div>
               </div>
@@ -1000,16 +994,12 @@
 
   <!-- TAB 1: EVENTS -->
   @if (activeTab() === 'events') {
-    <div class="tab-view">
-      <div class="tab-header d-flex justify-between align-center">
-        <div class="detector-heading-spacer" aria-hidden="true"></div>
-        <button class="btn btn-primary" (click)="openCreateEvent()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>Déclarer un problème</span>
-          </button>
-        </div>
-
-      <div class="detector-list-toolbar" aria-label="Recherche et filtres des déclarations">
+    <div class="tab-view events-tab-view detector-events-tab">
+      <div class="detector-list-toolbar detector-unified-toolbar" aria-label="Déclaration, recherche et filtres des déclarations">
+        <button class="btn btn-primary mobile-add-event-button" (click)="openCreateEvent()" title="Déclarer un problème" aria-label="Déclarer un problème">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Déclarer un problème</span>
+        </button>
         <div class="detector-search-row">
           <label class="detector-search-field">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
@@ -1017,6 +1007,26 @@
             <button type="button" class="voice-search-button" [class.listening]="activeVoiceSearch() === 'events'" (click)="startSearchVoice('events')" title="Recherche vocale" aria-label="Rechercher par la voix"><svg class="mic-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg></button>
           </label>
           <button type="button" class="filter-reset icon-reset detector-reset-button" (click)="resetEventFilters()" title="Réinitialiser la recherche" aria-label="Réinitialiser la recherche">↺</button>
+        </div>
+        <div class="detector-web-filters" aria-label="Filtres des déclarations">
+          <select [(ngModel)]="eventStateFilter" aria-label="Filtrer par état">
+            <option value="ALL">Tous les états</option>
+            <option value="Ouvert">Ouvert</option>
+            <option value="En cours">En cours</option>
+            <option value="Clos">Clos</option>
+          </select>
+          <select [(ngModel)]="eventQualificationFilter" aria-label="Filtrer par qualification">
+            <option value="ALL">Qualification</option>
+            <option value="NON_QUALIFIE">En attente</option>
+            <option value="INCIDENT">Incident</option>
+            <option value="NON_INCIDENT">Classé sans suite</option>
+          </select>
+          <select [(ngModel)]="eventRssiFilter" aria-label="Filtrer par envoi RSSI">
+            <option value="ALL">Tous les envois</option>
+            <option value="SENT">Envoyés</option>
+            <option value="NOT_SENT">Non envoyés</option>
+          </select>
+          <span class="result-count">{{ getFilteredEvents().length }} résultat(s)</span>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assistant RSSI TELNET V17.
+"""Assistant RSSI TELNET V25.
 
 Le script reçoit à chaque question les événements et incidents actuels de MySQL.
 Il utilise un modèle conversationnel Ollama installé localement par INSTALLER.cmd,
@@ -23,7 +23,7 @@ from typing import Any
 
 MODEL = os.environ.get("TELNET_AI_MODEL", "qwen2.5:3b")
 OLLAMA_URL = os.environ.get("TELNET_OLLAMA_URL", "http://127.0.0.1:11434")
-TIMEOUT = int(os.environ.get("TELNET_AI_TIMEOUT_SECONDS", "120"))
+TIMEOUT = int(os.environ.get("TELNET_AI_TIMEOUT_SECONDS", "10"))
 
 SITE_GUIDE = """
 TELNET est une plateforme de gestion des événements de sécurité. Le détecteur
@@ -52,6 +52,9 @@ SYNONYMS = {
     "fix": "resoudre", "explain": "expliquer", "similar": "similaire", "history": "historique",
     "website": "site", "platform": "site", "telnett": "telnet",
     "fire": "incendie", "smoke": "fumee", "alarm": "alarme", "blaze": "incendie",
+    "antivirus": "malware", "malveillant": "malware", "malveillante": "malware",
+    "trojan": "malware", "spyware": "malware", "quarantaine": "confinement",
+    "quarantine": "confinement", "infecte": "malware", "infection": "malware",
     "hiii": "hi", "hii": "hi", "helloo": "hello", "helloooo": "hello", "cvvvv": "cv",
     "ordinateur": "pc", "ordi": "pc", "poste": "pc", "laptop": "pc", "desktop": "pc",
     "px": "pc", "machine": "pc", "ecran": "affichage", "screen": "affichage",
@@ -223,7 +226,7 @@ def select_event(events: list[dict[str, Any]], selected_id: Any, question: str,
         best_scenario = scenario_kind(event_text(best_event))
         same_scenario = query_scenario != "generic" and (best_scenario == query_scenario
                         or (query_scenario == "technical" and best_scenario in {"outage", "authentication", "data", "malware"}))
-        if best_score >= 0.34 and (best_overlap or same_scenario):
+        if best_score >= 0.68 and ((len(best_overlap) >= 3) or (same_scenario and best_score >= 0.78)):
             return best_event, min(best_score, 1.0)
     return None, ranked[0][0] if ranked else 0.0
 
@@ -261,9 +264,15 @@ def scenario_kind(text: str) -> str:
     if any(expr in q for expr in ("panne serveur", "serveur panne", "serveur indisponible",
                                    "service indisponible", "reseau panne", "connexion panne")):
         return "outage"
-    if "authentification" in words or "mot passe" in q or "compte bloque" in q or "acces suspect" in q:
+    if "authentification" in words or "ssh" in words or "force brute" in q or "brute force" in q or "mot passe" in q or "compte bloque" in q or "acces suspect" in q:
         return "authentication"
-    if {"malware", "virus", "ransomware", "phishing"} & words:
+    if ({"malware", "virus", "ransomware", "phishing", "confinement"} & words
+            or "logiciel malware" in q
+            or "logiciel malveillant" in q
+            or "alerte antivirus" in q
+            or "detecte par antivirus" in q
+            or "place en quarantaine" in q
+            or "mis en quarantaine" in q):
         return "malware"
     if {"fuite", "exfiltration", "confidentialite"} & words or "donnee exposee" in q:
         return "data"
@@ -472,6 +481,62 @@ def qualification_suggestion(event: dict[str, Any] | None, scenario: str) -> dic
     }
 
 
+
+def derive_event_title(question: str, scenario: str) -> str:
+    """Create a concise French title from the actual situation instead of a fixed generic title."""
+    q = normalize(question)
+    words = set(q.split())
+    if "ssh" in words and ({"force", "brute", "tentative", "tentatives", "echec"} & words):
+        return "Tentatives SSH par force brute"
+    if scenario == "authentication":
+        if "root" in words or "administrateur" in words:
+            return "Tentatives d’accès au compte administrateur"
+        if "compte" in words and "bloque" in words:
+            return "Compte utilisateur bloqué"
+        return "Échecs d’authentification répétés"
+    if scenario == "fire":
+        return "Alarme incendie" if "alarme" in words else "Départ d’incendie signalé"
+    if scenario == "outage":
+        if "base" in words:
+            return "Indisponibilité de la base de données"
+        if "reseau" in words:
+            return "Panne de connectivité réseau"
+        if "application" in words:
+            return "Indisponibilité de l’application"
+        return "Indisponibilité du serveur"
+    if scenario == "endpoint":
+        if "demarrage" in words:
+            return "Échec de démarrage du poste"
+        if "lenteur" in words:
+            return "Lenteur anormale du poste"
+        if "affichage" in words:
+            return "Anomalie d’affichage du poste"
+        return "Anomalie sur poste utilisateur"
+    if scenario == "malware":
+        return "Suspicion de logiciel malveillant"
+    if scenario == "data":
+        return "Suspicion d’exposition de données"
+    useful = [w for w in normalize(question).split() if w not in STOP_WORDS and len(w) > 2]
+    if useful:
+        title = " ".join(useful[:7]).strip()
+        return title[:1].upper() + title[1:70]
+    return "Événement technique à analyser"
+
+
+def normalize_event_draft(draft: dict[str, Any] | None, question: str, scenario: str) -> dict[str, Any]:
+    result = dict(draft or {})
+    generated = derive_event_title(question, scenario)
+    current = str(result.get("libelleErreur") or "").strip()
+    generic_titles = {
+        "", "authentication failure", "evenement technique a analyser",
+        "anomalie technique", "incident de securite", "probleme technique"
+    }
+    if normalize(current) in generic_titles or not current:
+        result["libelleErreur"] = generated
+    elif scenario != "authentication" and normalize(current) == "authentication failure":
+        result["libelleErreur"] = generated
+    return result
+
 def build_event_draft(question: str, scenario: str) -> dict[str, Any]:
     """Prepare a complete event declaration for a situation not yet stored in TELNET."""
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -515,7 +580,7 @@ def build_event_draft(question: str, scenario: str) -> dict[str, Any]:
         "causes": "Erreur de configuration, panne technique, changement récent, dépendance externe ou anomalie de sécurité à confirmer.",
     })
     return {
-        "libelleErreur": item["title"],
+        "libelleErreur": derive_event_title(cleaned, scenario),
         "descriptionDetaillee": item["description"],
         "detecteParSource": "AUTRE",
         "idTicket": f"AI-{stamp}",
@@ -600,7 +665,7 @@ def find_ollama_executable() -> str | None:
 
 
 def ollama_http(prompt: str, json_format: bool = False) -> str:
-    body: dict[str, Any] = {"model": MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.32, "num_ctx": 8192}}
+    body: dict[str, Any] = {"model": MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.20, "num_ctx": 1792, "num_predict": 180}, "keep_alive": "30m"}
     if json_format:
         body["format"] = "json"
     request = urllib.request.Request(
@@ -617,21 +682,25 @@ def ollama_http(prompt: str, json_format: bool = False) -> str:
 
 
 def run_ollama(prompt: str, json_format: bool = False) -> str:
+    """Essaie le modèle une fois, puis bascule rapidement sur le moteur local.
+
+    L'ancien code pouvait attendre plusieurs appels longs successifs. Cette version
+    évite de bloquer l'interface: l'installateur démarre déjà Ollama; si le service
+    ou le modèle ne répond pas dans le délai, l'appelant utilise fallback_answer().
+    """
     try:
         return ollama_http(prompt, json_format)
     except Exception as first_error:  # noqa: BLE001
         executable = find_ollama_executable()
-        if not executable:
-            raise RuntimeError(f"Ollama introuvable: {first_error}") from first_error
-        subprocess.Popen([executable, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        for _ in range(16):
-            time.sleep(0.5)
+        if executable:
             try:
+                subprocess.Popen([executable, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                time.sleep(1.0)
                 return ollama_http(prompt, json_format)
             except Exception:  # noqa: BLE001
                 pass
-        raise RuntimeError(f"Ollama ne répond pas ou le modèle {MODEL} n'est pas installé.")
+        raise RuntimeError(f"Ollama ou le modèle {MODEL} n'a pas répondu dans le délai: {first_error}") from first_error
 
 
 def parse_json_object(text: str) -> dict[str, Any]:
@@ -788,7 +857,53 @@ def fallback_answer(question: str, event: dict[str, Any] | None, incident: dict[
         elif scenario == "authentication":
             answer = "Une anomalie d’authentification peut venir d’un compte bloqué, d’un mot de passe expiré, d’une mauvaise configuration, d’un service d’identité indisponible ou de tentatives d’accès suspectes. Analysez les comptes, les adresses sources et les journaux, bloquez les accès suspects et vérifiez le MFA."
         elif scenario == "malware":
-            answer = "Isolez immédiatement le poste ou le serveur suspect, conservez les traces, mesurez la propagation et identifiez le vecteur d’entrée. Éradiquez la menace, restaurez depuis une source saine et changez les secrets potentiellement exposés."
+            actions = baseline_actions(None, scenario)
+            if intent == "classification":
+                answer = (
+                    "Une détection de logiciel malveillant sur un poste est un événement de sécurité. "
+                    "Avec un risque de propagation, d’altération de fichiers ou d’exposition de données, "
+                    "je propose à confirmer : Confidentialité Critique, Intégrité Critique et Disponibilité Majeur. "
+                    "La règle TELNET le classe donc comme INCIDENT, car au moins un impact est Critique."
+                )
+            elif intent == "actions":
+                answer = (
+                    "Étapes recommandées : "
+                    "1) maintenir le poste isolé du réseau sans supprimer les preuves; "
+                    "2) conserver les journaux antivirus, système, proxy et authentification; "
+                    "3) identifier le fichier, le processus, le compte et le vecteur d’entrée; "
+                    "4) rechercher des indicateurs identiques sur les autres postes; "
+                    "5) éradiquer la menace ou réinstaller depuis une image saine; "
+                    "6) changer les secrets potentiellement exposés; "
+                    "7) reconnecter le poste seulement après contrôle complet et surveillance renforcée."
+                )
+            elif intent == "causes":
+                answer = (
+                    "Les causes probables comprennent une pièce jointe malveillante, un téléchargement compromis, "
+                    "une vulnérabilité non corrigée, un support amovible, un compte compromis ou un logiciel non autorisé. "
+                    "Confirmez la cause avec les journaux, l’historique de navigation, les processus, les connexions réseau "
+                    "et les changements récents."
+                )
+            elif intent == "risks":
+                answer = (
+                    "Les risques principaux sont la propagation vers d’autres systèmes, l’exfiltration de données, "
+                    "l’altération ou le chiffrement de fichiers, le vol d’identifiants et l’indisponibilité du poste. "
+                    "Le service Finance augmente la sensibilité des données et impose de vérifier les accès aux fichiers partagés."
+                )
+            elif intent == "fill":
+                answer = (
+                    "Je peux préparer la déclaration, proposer les trois impacts CID et préremplir toute la fiche d’incident. "
+                    "Le poste restera considéré comme isolé, les preuves comme conservées et les actions proposées devront être "
+                    "vérifiées par le RSSI avant l’enregistrement."
+                )
+            else:
+                answer = (
+                    "La situation correspond à une suspicion de logiciel malveillant sur un poste utilisateur. "
+                    "L’isolement réseau et la conservation des journaux sont de bonnes premières mesures. "
+                    "Il faut maintenant identifier le vecteur d’entrée, mesurer une éventuelle propagation, vérifier les comptes "
+                    "et fichiers accessibles, éradiquer la menace puis restaurer le poste depuis une source saine. "
+                    "Au vu du risque de propagation et d’altération, une qualification INCIDENT est probable et doit être confirmée "
+                    "avec les trois impacts CID."
+                )
         elif scenario == "data":
             answer = "Limitez immédiatement l’accès aux données, préservez les journaux et identifiez les informations et personnes concernées. Bloquez le canal de fuite, vérifiez les obligations de notification, corrigez la cause et renforcez les contrôles d’accès."
         else:
@@ -801,7 +916,12 @@ def fallback_answer(question: str, event: dict[str, Any] | None, incident: dict[
             elif intent == "causes":
                 answer = "Les premières causes à vérifier sont les changements récents, les erreurs de configuration, la saturation des ressources, les pannes matérielles ou réseau, les dépendances externes et les actions malveillantes."
             else:
-                answer = "Je peux analyser cette situation même si elle n’existe pas encore dans l’historique. Précisez simplement ce que vous observez, par exemple le symptôme, le service touché ou depuis quand cela dure; je proposerai les causes, les risques et les actions sans exiger un ID."
+                answer = (
+                    "Même si cette situation n’existe pas encore dans l’historique, commencez par décrire le symptôme et l’actif touché, "
+                    "puis conservez les journaux et les changements récents. Vérifiez ensuite la configuration, les ressources, le réseau, "
+                    "les dépendances et les signes d’activité malveillante. Évaluez enfin les impacts Confidentialité, Intégrité et Disponibilité; "
+                    "si l’un d’eux est Critique, TELNET la classera comme incident. Je peux préparer une déclaration à partir des éléments déjà fournis."
+                )
 
     if event and intent == "similar" and not matches:
         matches = find_similar(events, event)
@@ -860,9 +980,15 @@ def assistant(payload: dict[str, Any]) -> dict[str, Any]:
             "qualificationDraft": {}, "source": "Assistant TELNET", "engine": "direct-conversation",
         }
 
-    ranked = sorted(events, key=lambda item: similarity(context_query, event_text(item)), reverse=True)[:15]
+    # Fast specialist route for clear situations: immediate answer instead of a long model wait.
+    if scenario in {"fire", "outage", "authentication", "endpoint", "malware", "data"} and intent in {
+        "analysis", "explain", "actions", "classification", "risks", "causes", "fill"
+    }:
+        return fallback_answer(question, event, incident, events, incidents, history, event_score, "fast-specialist")
+
+    ranked = sorted(events, key=lambda item: similarity(context_query, event_text(item)), reverse=True)[:4]
     relevant_ids = {str(item.get("id")) for item in ranked}
-    relevant_incidents = [item for item in incidents if str(item.get("eventId")) in relevant_ids][:15]
+    relevant_incidents = [item for item in incidents if str(item.get("eventId")) in relevant_ids][:4]
     context = {
         "selectedEvent": compact_event(event), "selectedIncident": compact_incident(incident),
         "eventMatchScore": round(event_score * 100), "classificationCid": classification,
@@ -871,7 +997,7 @@ def assistant(payload: dict[str, Any]) -> dict[str, Any]:
         "relevantIncidents": [compact_incident(item) for item in relevant_incidents],
         "counts": {"events": len(events), "incidents": len(incidents)},
     }
-    history_text = [{"role": str(item.get("role") or "user"), "text": str(item.get("text") or "")[:1200]} for item in history[-10:] if isinstance(item, dict)]
+    history_text = [{"role": str(item.get("role") or "user"), "text": str(item.get("text") or "")[:700]} for item in history[-4:] if isinstance(item, dict)]
 
     prompt = f"""
 Tu es un véritable chatbot RSSI conversationnel de TELNET. Réponds toujours en français naturel et directement à la dernière question.
@@ -888,10 +1014,10 @@ GUIDE TELNET:
 {SITE_GUIDE}
 
 DONNÉES LIVE:
-{json.dumps(context, ensure_ascii=False)[:30000]}
+{json.dumps(context, ensure_ascii=False)[:8500]}
 
 HISTORIQUE:
-{json.dumps(history_text, ensure_ascii=False)[:9000]}
+{json.dumps(history_text, ensure_ascii=False)[:2400]}
 
 QUESTION ACTUELLE:
 {question}
@@ -958,7 +1084,7 @@ Retourne uniquement un JSON valide:
                 "Voulez-vous que je prépare une nouvelle déclaration à partir de cette situation ?" if ask_to_create else "")),
             "askToFillIncident": ask,
             "askToCreateEvent": ask_to_create,
-            "eventDraft": (model.get("eventDraft") if isinstance(model.get("eventDraft"), dict) and model.get("eventDraft") else build_event_draft(context_query, scenario)) if ask_to_create else {},
+            "eventDraft": normalize_event_draft((model.get("eventDraft") if isinstance(model.get("eventDraft"), dict) and model.get("eventDraft") else build_event_draft(context_query, scenario)), context_query, scenario) if ask_to_create else {},
             "similarFound": bool(matches), "matches": matches, "actions": actions,
             "incidentDraft": build_draft(event, incident, actions, model_draft, scenario),
             "qualificationDraft": suggested_qualification,
