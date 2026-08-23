@@ -1,411 +1,57 @@
-TELNET Sécurité
-🎯 Présentation du projet
-
-TELNET Sécurité est une plateforme web destinée à la gestion des événements, des incidents et des risques de sécurité. Elle permet de centraliser les déclarations, de faciliter leur analyse par le Responsable de la Sécurité des Systèmes d’Information et d’assurer la traçabilité des différentes actions réalisées.
-
-L’application repose sur deux acteurs principaux :
-
-Le Détecteur, qui déclare les événements de sécurité et suit leur état.
-Le RSSI, qui analyse les événements reçus, les qualifie et assure le traitement des incidents et des risques associés.
-
-Le RSSI évalue chaque événement selon trois critères :
-
-Confidentialité
-Intégrité
-Disponibilité
-
-Lorsqu’au moins un de ces impacts est critique, l’événement peut être qualifié comme incident et un plan de traitement est créé.
-
-🎯 Fonctionnalités principales
-Fonctionnalités du Détecteur
-Création d’un compte.
-Authentification sécurisée.
-Récupération du mot de passe.
-Gestion du profil.
-Déclaration d’un événement de sécurité.
-Modification d’une déclaration.
-Consultation des événements déclarés.
-Recherche textuelle et vocale.
-Transmission d’un événement au RSSI.
-Suivi de l’état de traitement.
-Fonctionnalités du RSSI
-Consultation de tous les événements reçus.
-Recherche et filtrage des événements.
-Réception de notifications visuelles et par e-mail.
-Qualification selon les impacts CID.
-Création et suivi des incidents.
-Gestion des mesures d’atténuation.
-Définition des responsables et des délais.
-Gestion des actions correctives.
-Gestion des risques associés.
-Consultation du journal d’audit.
-Consultation des statistiques.
-Gestion du profil et des paramètres.
-Utilisation de l’assistant intelligent.
-Fonctionnalités de l’assistant intelligent
-Réponse aux questions du RSSI.
-Analyse du contexte d’un événement.
-Recherche d’événements similaires.
-Proposition de causes possibles.
-Proposition de risques.
-Proposition d’actions de traitement.
-Génération de descriptions professionnelles.
-Proposition de qualification CID.
-Préparation d’un brouillon d’incident.
-Remplissage assisté de certains champs.
-Interaction textuelle ou vocale en français.
-Conservation de l’historique des conversations dans le navigateur.
-🎯 Architecture de l’application
-
-L’application utilise une architecture composée de quatre parties principales.
-
-Utilisateur
-    |
-    v
-Frontend Angular
-    |
-    | Requêtes HTTP au format JSON
-    v
-Backend Spring Boot
-    |
-    |-------------------- MySQL
-    |
-    |-------------------- Gmail SMTP
-    |
-    |-------------------- Assistant Python
-                              |
-                              v
-                         Ollama + Qwen 2.5
-Frontend Angular
-
-Le frontend représente la partie visible de l’application. Il gère :
-
-les interfaces ;
-les formulaires ;
-les tableaux ;
-les recherches ;
-les graphiques ;
-les notifications visuelles ;
-la reconnaissance vocale ;
-la synthèse vocale ;
-l’adaptation aux écrans mobiles.
-Backend Spring Boot
-
-Le backend reçoit les demandes du frontend et assure :
-
-l’authentification ;
-le contrôle des accès ;
-la validation des données ;
-l’application des règles métier ;
-la gestion des événements ;
-la gestion des incidents ;
-la gestion des risques ;
-l’envoi des e-mails ;
-le journal d’audit ;
-la communication avec l’assistant Python.
-Base de données MySQL
-
-MySQL assure le stockage permanent des données suivantes :
-
-utilisateurs ;
-événements ;
-incidents ;
-risques ;
-types d’incident ;
-journaux d’audit.
-Assistant intelligent
-
-Le backend transmet les questions, les événements et les incidents au programme Python. Celui-ci normalise le texte, recherche les cas similaires et interroge le modèle local Qwen exécuté avec Ollama.
-
-Si le modèle n’est pas disponible, un moteur de règles Python ou Java permet de conserver une réponse minimale.
-
-🎯 Technologies et versions
-Frontend
-
-Versions déclarées dans frontend/package.json :
-
-Technologie	Version déclarée	Utilisation
-Angular Core	^22.0.0	Structure principale du frontend
-Angular Common	^22.0.0	Fonctionnalités communes Angular
-Angular Compiler	^22.0.0	Compilation Angular
-Angular Forms	^22.0.0	Formulaires et validations
-Angular Router	^22.0.0	Navigation entre les interfaces
-Angular Platform Browser	^22.0.0	Exécution dans le navigateur
-Angular CLI	^22.0.3	Commandes Angular
-Angular Build	^22.0.3	Construction de l’application
-Angular Compiler CLI	^22.0.0	Compilation des composants
-TypeScript	~6.0.2	Langage du frontend
-RxJS	~7.8.0	Traitements asynchrones
-Chart.js	^4.5.1	Graphiques du tableau de bord
-tslib	^2.3.0	Fonctions TypeScript partagées
-Vitest	^4.0.8	Tests frontend
-jsdom	^28.0.0	Simulation du navigateur pendant les tests
-Prettier	^3.8.1	Formatage du code
-npm	11.13.0	Gestion des dépendances frontend
+# 🛡️ TELNET Sécurité
 
-Pour afficher les versions réellement installées :
+## 🎯 Présentation du projet
 
-cd frontend
-npm list --depth=0
-Backend
-Technologie	Version	Utilisation
-Java	21	Langage du backend
-Spring Boot	3.5.15	Framework principal
-JJWT	0.11.5	Création et validation des JWT
-Maven Wrapper	3.3.4	Lancement automatique de Maven
-Distribution Maven	3.9.16	Compilation du backend
+TELNET Sécurité est une plateforme web de gestion des événements, incidents et risques de sécurité, enrichie par des fonctionnalités d’**intelligence artificielle et de machine learning** afin d’assister le RSSI dans son travail quotidien.
 
-La version Maven utilisée peut être vérifiée avec :
+La plateforme permet de centraliser les déclarations de sécurité, de les analyser, de les qualifier selon les critères de **Confidentialité, Intégrité et Disponibilité (CID)** et d’assurer le suivi des incidents et des risques. L’intelligence artificielle occupe une place importante dans le projet grâce à un **assistant intelligent**, à l’analyse automatique du contexte, au remplissage assisté de formulaires, à la recherche de cas similaires, aux recommandations de traitement et aux interactions vocales.
 
-cd demo
-.\mvnw.cmd -version
-Dépendances Spring Boot
+L’application repose principalement sur deux acteurs : le **Détecteur**, chargé de déclarer les événements de sécurité et de suivre leur traitement, et le **RSSI**, chargé de les analyser, de les qualifier et de gérer les incidents et risques associés.
 
-Les versions des dépendances suivantes sont gérées par Spring Boot 3.5.15 :
+## ⚙️ Fonctionnalités principales
 
-Spring Web
-Spring Data JPA
-Hibernate ORM
-Spring Security
-Spring Validation
-Spring Mail
-MySQL Connector/J
-Lombok
-Spring Boot Test
-Spring Security Test
+Le Détecteur peut créer et gérer son compte, déclarer ou modifier un événement de sécurité, consulter ses déclarations, effectuer des recherches textuelles ou vocales, transmettre un événement au RSSI et suivre son état de traitement.
 
-Pour afficher toutes les dépendances du backend :
+Le RSSI dispose d’outils lui permettant de consulter et filtrer les événements, réaliser leur qualification CID, créer et suivre les incidents, gérer les risques, les mesures d’atténuation et les actions correctives, définir les responsables et les délais, consulter les statistiques et le journal d’audit, ainsi qu’exploiter les fonctionnalités d’intelligence artificielle intégrées à la plateforme.
 
-cd demo
-.\mvnw.cmd dependency:tree
-Assistant intelligent
-Technologie	Utilisation
-Python 3	Analyse des questions et exécution du moteur de règles
-Python 3.12	Version utilisée par les commandes d’installation
-Ollama	Exécution locale du modèle
-Qwen 2.5	Modèle conversationnel
-qwen2.5:3b	Modèle configuré par défaut
+## 🤖 Intelligence artificielle et Machine Learning
 
-Le programme Python utilise principalement la bibliothèque standard :
+L’intelligence artificielle constitue une partie importante de TELNET Sécurité. Elle a été intégrée afin d’aider le RSSI à analyser plus rapidement les informations disponibles, à réduire les tâches manuelles et à faciliter la prise de décision lors du traitement des événements de sécurité.
 
-json
-os
-re
-subprocess
-urllib.request
-unicodedata
-difflib
-pathlib
-typing
+Le projet utilise un **assistant intelligent basé sur Qwen 2.5**, exécuté localement avec **Ollama** et intégré à l’application grâce à un programme **Python**. Qwen est un modèle d’intelligence artificielle reposant sur des techniques de machine learning et de traitement automatique du langage naturel.
 
-Aucun paquet Python externe n’est obligatoire pour le fonctionnement actuel de l’assistant.
+L’assistant peut analyser le contenu d’un événement de sécurité et tenir compte de son contexte afin de fournir des suggestions adaptées. Il peut notamment proposer des **causes possibles**, identifier des **risques potentiels**, suggérer des **actions de traitement** et aider le RSSI à déterminer une qualification selon les critères de Confidentialité, d’Intégrité et de Disponibilité.
 
-🎯 Installation complète
-Installation du frontend
+L’IA permet également de rechercher des **événements similaires** déjà présents dans le système. Cette fonctionnalité aide le RSSI à comparer un nouvel événement avec des situations précédentes et à exploiter les informations déjà disponibles pour faciliter son analyse.
 
-Ouvrir PowerShell dans le dossier du projet :
+Le système propose également un **remplissage assisté par intelligence artificielle**. À partir des informations d’un événement, l’assistant peut générer ou proposer automatiquement certaines données utiles, comme une description professionnelle, des risques, des actions de traitement ou des éléments nécessaires à la préparation d’un incident. Le RSSI conserve la possibilité de vérifier et de modifier les propositions avant leur utilisation.
 
-cd C:\chemin\vers\telnet\frontend
-npm install
+L’assistant peut également préparer un **brouillon d’incident** à partir d’un événement analysé. Cette fonctionnalité permet de réduire la saisie manuelle et d’accélérer la préparation du traitement tout en laissant la décision finale au RSSI.
 
-Compiler le frontend :
+Les interactions avec l’application peuvent être réalisées par **texte ou par voix en français**. La reconnaissance vocale facilite la saisie des recherches et des demandes adressées à l’assistant, tandis que les fonctionnalités vocales améliorent l’accessibilité et la rapidité d’utilisation de la plateforme.
 
-npm run build
+L’historique des échanges avec l’assistant est conservé dans le navigateur afin de permettre au RSSI de retrouver le contexte de ses précédentes interactions.
 
-Vérifier TypeScript :
+Enfin, lorsque le modèle d’intelligence artificielle n’est pas disponible, un **moteur de règles** permet de conserver certaines fonctionnalités d’assistance et de fournir des réponses minimales. Cette approche permet de rendre le système plus robuste et de ne pas dépendre entièrement du modèle d’IA.
 
-npx tsc --noEmit -p tsconfig.app.json
-Compilation du backend
+L’objectif de ces fonctionnalités n’est pas de remplacer le RSSI, mais de lui fournir un **outil d’aide à l’analyse et à la décision** permettant de gagner du temps, de mieux structurer les informations et de faciliter le traitement des événements, incidents et risques de sécurité.
 
-Ouvrir un terminal dans le dossier demo :
+## 🧰 Technologies utilisées
 
-cd C:\chemin\vers\telnet\demo
-.\mvnw.cmd clean package
+**Angular 22.0.0** — développement de l’interface web.
+**Angular CLI 22.0.3** — gestion et compilation du projet Angular.
+**TypeScript 6.0.2** — développement du frontend.
+**RxJS 7.8.0** — gestion des traitements asynchrones.
+**Chart.js 4.5.1** — affichage des statistiques et graphiques.
+**Java 21** — développement du backend.
+**Spring Boot 3.5.15** — développement des services backend et de la logique métier.
+**JJWT 0.11.5** — gestion de l’authentification avec JWT.
+**Maven 3.9.16** — gestion et compilation du projet backend.
+**MySQL** — stockage des utilisateurs, événements, incidents, risques et journaux d’audit.
+**Python 3.12** — traitement des fonctionnalités de l’assistant intelligent et du moteur de règles.
+**Ollama** — exécution locale du modèle d’intelligence artificielle.
+**Qwen 2.5 / qwen2.5:3b** — modèle d’intelligence artificielle utilisé par l’assistant.
 
-Pour compiler sans lancer les tests :
+## 📱 Version mobile
 
-.\mvnw.cmd clean package -DskipTests
-
-Pour vérifier uniquement la compilation :
-
-.\mvnw.cmd compile
-
-Maven Wrapper télécharge automatiquement Maven et les dépendances Java nécessaires.
-
-🎯 Configuration de MySQL
-
-Créer la base de données :
-
-CREATE DATABASE IF NOT EXISTS telnet
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
-
-Configuration principale dans :
-
-demo/src/main/resources/application.properties
-
-Exemple :
-
-server.port=8081
-
-spring.datasource.url=jdbc:mysql://localhost:3306/telnet
-spring.datasource.username=root
-spring.datasource.password=VOTRE_MOT_DE_PASSE
-
-spring.jpa.open-in-view=false
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-spring.jpa.database-platform=org.hibernate.dialect.MySQL8Dialect
-
-La propriété suivante permet à Hibernate de créer ou de mettre à jour automatiquement les tables à partir des entités Java :
-
-spring.jpa.hibernate.ddl-auto=update
-
-Les principales entités se trouvent dans :
-
-demo/src/main/java/com/example/demo/entity/
-
-Les repositories permettant d’accéder à MySQL se trouvent dans :
-
-demo/src/main/java/com/example/demo/repository/
-🎯 Configuration Gmail
-
-L’application utilise Spring Mail et Gmail SMTP pour informer le RSSI lorsqu’un événement lui est transmis.
-
-Configuration dans :
-
-demo/src/main/resources/application.properties
-spring.mail.host=smtp.gmail.com
-spring.mail.port=587
-spring.mail.username=VOTRE_ADRESSE_GMAIL
-spring.mail.password=${MAIL_APP_PASSWORD}
-
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
-spring.mail.properties.mail.smtp.starttls.required=true
-spring.mail.properties.mail.smtp.ssl.trust=smtp.gmail.com
-
-app.mail.from=VOTRE_ADRESSE_GMAIL
-app.mail.rssi=ADRESSE_DU_RSSI
-
-Définir le mot de passe d’application Gmail dans PowerShell :
-
-$env:MAIL_APP_PASSWORD="VOTRE_MOT_DE_PASSE_APPLICATION"
-Adresse d’envoi
-
-L’adresse utilisée pour envoyer le message est définie par :
-
-spring.mail.username=VOTRE_ADRESSE_GMAIL
-app.mail.from=VOTRE_ADRESSE_GMAIL
-Adresse du RSSI
-
-L’adresse qui reçoit les notifications est définie par :
-
-app.mail.rssi=ADRESSE_DU_RSSI
-
-Pour changer le destinataire, il suffit donc principalement de modifier cette propriété.
-
-Le service Java utilise cette valeur dans :
-
-demo/src/main/java/com/example/demo/service/EmailService.java
-
-La propriété est récupérée avec :
-
-@Value("${app.mail.rssi}")
-private String defaultRssiEmail;
-
-Le même fichier contient également une adresse de secours :
-
-private static final String FIXED_RSSI_EMAIL = "adresse-de-secours@gmail.com";
-
-Cette adresse est uniquement utilisée lorsque app.mail.rssi est vide. La personne qui reprend le projet peut également la modifier.
-
-Logique d’envoi du message
-
-La création simple d’un événement ne déclenche pas immédiatement l’e-mail. Le message est envoyé lorsque le Détecteur transmet l’événement au RSSI.
-🎯 Lancement de l’application
-Lancer le backend
-
-Ouvrir un premier terminal :
-
-cd C:\chemin\vers\telnet\demo
-.\mvnw.cmd spring-boot:run
-
-Le backend est disponible à l’adresse :
-
-http://localhost:8081
-Lancer le frontend
-
-Ouvrir un second terminal :
-
-cd C:\chemin\vers\telnet\frontend
-npm start
-
-ou :
-
-npx ng serve
-
-Le frontend est disponible à l’adresse :
-
-http://localhost:4200
-
-Angular doit être lancé depuis le dossier frontend, tandis que Spring Boot doit être lancé depuis le dossier demo.
-
-🎯 Tests
-Tests du frontend
-cd frontend
-npm test
-
-Vérification TypeScript :
-
-npx tsc --noEmit -p tsconfig.app.json
-
-Compilation de production :
-
-npm run build
-Tests du backend
-cd demo
-.\mvnw.cmd test
-
-Compilation complète :
-
-.\mvnw.cmd clean package
-Tests de l’assistant
-
-Vérifier la présence du script :
-
-python -m py_compile python\rssi_assistant.py
-
-📱 Version mobile
-
-La version mobile utilise la même application Angular que la version ordinateur. L’adaptation est réalisée avec le responsive design, les règles CSS @media et certaines conditions TypeScript.
-
-Les principaux seuils utilisés dans le frontend sont notamment :
-
-900 px
-760 px
-700 px
-640 px
-600 px
-390 px
-
-Sur un téléphone :
-
-les tableaux sont transformés en cartes ;
-certaines colonnes secondaires sont masquées ;
-les formulaires passent sur une seule colonne ;
-les boutons sont agrandis pour faciliter l’utilisation tactile ;
-les filtres secondaires sont masqués ;
-la barre de recherche reste accessible ;
-le microphone reste intégré dans le champ de recherche ;
-l’historique de l’assistant est fermé automatiquement ;
-la zone de conversation s’adapte à la hauteur de l’écran ;
-la fenêtre de reconnaissance vocale s’adapte au format mobile.
-
-La logique principale de l’interface mobile se trouve dans :
-
-frontend/src/app/components/dashboard.css
-
-Les changements d’affichage interactifs se trouvent dans :
-
-frontend/src/app/components/dashboard.ts
+TELNET Sécurité utilise une interface responsive basée sur la même application Angular pour les environnements ordinateur et mobile. L’affichage s’adapte automatiquement à la taille de l’écran afin de faciliter la consultation des événements, l’utilisation des formulaires, la recherche, les interactions vocales et l’accès à l’assistant intelligent depuis un smartphone.
